@@ -3,87 +3,185 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cosmic Liquid Painter - Spectacular Edition</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="css/holographic-ui.css">
+    <title>Cosmo Liquid - Interactive Physics Art</title>
+    <meta name="description" content="Create spectacular physics art with liquid particle streams in space">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000011;
+            font-family: 'Arial', sans-serif;
+            cursor: crosshair;
+        }
+        
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        #performance-stats {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #00ffff;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            text-shadow: 0 0 5px #00ffff;
+            pointer-events: auto;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+        }
+        
+        #controls-help {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #00ffff;
+            font-size: 14px;
+            text-shadow: 0 0 5px #00ffff;
+            opacity: 0.8;
+        }
+        
+        #liquid-selector {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            pointer-events: auto;
+        }
+        
+        .liquid-button {
+            width: 40px;
+            height: 40px;
+            border: 2px solid rgba(0, 255, 255, 0.5);
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.5);
+            color: #00ffff;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+        
+        .liquid-button:hover {
+            border-color: #00ffff;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+            transform: scale(1.1);
+        }
+        
+        .liquid-button.active {
+            border-color: #ff00ff;
+            color: #ff00ff;
+            box-shadow: 0 0 20px rgba(255, 0, 255, 0.7);
+        }
+        
+        #loading-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000011;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 1s ease;
+        }
+        
+        .loading-text {
+            color: #00ffff;
+            font-size: 24px;
+            text-shadow: 0 0 10px #00ffff;
+            margin-bottom: 20px;
+        }
+        
+        .loading-bar {
+            width: 300px;
+            height: 4px;
+            background: rgba(0, 255, 255, 0.2);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        
+        .loading-progress {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #00ffff, #ff00ff);
+            transition: width 0.3s ease;
+            box-shadow: 0 0 10px #00ffff;
+        }
+    </style>
 </head>
 <body>
-    <div id="app">
-        <!-- HUD Overlay -->
-        <div id="hud">
-            <div id="controls" class="holo-panel quantum-fluctuation">
-                <h2 class="neon-text">🌌 Cosmic Liquid Painter</h2>
-                <div class="control-group">
-                    <label for="liquidType">Liquid Type:</label>
-                    <select id="liquidType" class="holo-select">
-                        <option value="plasma">⚡ Plasma Stream</option>
-                        <option value="crystal">💎 Crystal Liquid</option>
-                        <option value="temporal">⏰ Temporal Flux</option>
-                        <option value="antimatter">☢️ Anti-Matter</option>
-                        <option value="quantum">🌀 Quantum Foam</option>
-                        <option value="dark">🌑 Dark Matter</option>
-                        <option value="exotic">✨ Exotic Matter</option>
-                        <option value="photonic">💡 Photonic Stream</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label for="launchPower">Launch Power:</label>
-                    <input type="range" id="launchPower" class="holo-slider" min="1" max="100" value="50">
-                    <span id="powerValue">50</span>
-                </div>
-                <div class="control-group">
-                    <button id="clearCanvas" class="holo-button">Clear Canvas</button>
-                    <button id="pauseTime" class="holo-button">Pause</button>
-                    <button id="toggleEffects" class="holo-button">Toggle FX</button>
-                </div>
-            </div>
-            <div id="score" class="holo-panel">
-                <div>Score: <span id="scoreValue">0</span></div>
-                <div>Particles: <span id="particleCount">0</span></div>
-                <div>Stable Orbits: <span id="orbitCount">0</span></div>
-            </div>
+    <div id="loading-screen">
+        <div class="loading-text">Initializing Cosmo Liquid</div>
+        <div class="loading-bar">
+            <div class="loading-progress" id="loading-progress"></div>
         </div>
-
-        <!-- Instructions -->
-        <div id="instructions">
-            <p>🎨 <strong>Click and drag</strong> to launch liquid streams</p>
-            <p>🪐 <strong>Right-click</strong> to place gravity wells</p>
-            <p>📷 <strong>Mouse wheel</strong> to zoom, drag to rotate view</p>
-            <p>⏸️ <strong>Space</strong> to pause/resume time</p>
+    </div>
+    
+    <div id="canvas-container"></div>
+    
+    <div id="ui-overlay">
+        <div id="performance-stats">
+            <div>FPS: <span id="fps-counter">60</span></div>
+            <div>Particles: <span id="particle-count">0</span></div>
+            <div>Memory: <span id="memory-usage">0</span>MB</div>
         </div>
-
-        <!-- Canvas Container -->
-        <div id="canvas-container">
-            <!-- Three.js canvas will be inserted here -->
+        
+        <div id="liquid-selector">
+            <button class="liquid-button active" data-liquid="plasma" title="Plasma Stream">⚡</button>
+            <button class="liquid-button" data-liquid="crystal" title="Crystal Liquid">💎</button>
+            <button class="liquid-button" data-liquid="temporal" title="Temporal Flux">⏰</button>
+            <button class="liquid-button" data-liquid="antimatter" title="Anti-Matter">☢️</button>
+            <button class="liquid-button" data-liquid="quantum" title="Quantum Foam">🌀</button>
+            <button class="liquid-button" data-liquid="darkmatter" title="Dark Matter">🌑</button>
+            <button class="liquid-button" data-liquid="exotic" title="Exotic Matter">✨</button>
+            <button class="liquid-button" data-liquid="photonic" title="Photonic Stream">💡</button>
+        </div>
+        
+        <div id="controls-help">
+            <strong>Controls:</strong><br>
+            Click & Drag: Launch particle stream<br>
+            Right Click: Place gravity well<br>
+            Mouse Wheel: Zoom<br>
+            1-8: Switch liquid types
         </div>
     </div>
 
-    <!-- Particle field background -->
-    <div class="particle-field" id="particleField"></div>
+    <!-- Three.js from CDN (newer approach) -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+        }
+    }
+    </script>
     
-    <!-- Achievement popup container -->
-    <div id="achievementContainer"></div>
-    
-    <!-- Load Three.js from CDN -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
-    
-    <!-- Load our modules -->
-    <script src="js/utils/math.js"></script>
-    <script src="js/physics/particle.js"></script>
-    <script src="js/physics/gravity.js"></script>
-    <script src="js/physics/quantum.js"></script>
-    <script src="js/rendering/scene.js"></script>
-    <script src="js/rendering/effects.js"></script>
-    <script src="js/rendering/gpu-particles.js"></script>
-    <script src="js/rendering/post-processing.js"></script>
-    <script src="js/game/controls.js"></script>
-    <script src="js/game/scoring.js"></script>
-    <script src="js/ui/holographic.js"></script>
-    <script src="js/main.js"></script>
+    <!-- Core application -->
+    <script type="module" src="js/main.js"></script>
 </body>
 </html>
