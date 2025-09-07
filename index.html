@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmic Liquid Painter - Spectacular Edition</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="css/holographic-ui.css">
+</head>
+<body>
+    <div id="app">
+        <!-- HUD Overlay -->
+        <div id="hud">
+            <div id="controls" class="holo-panel quantum-fluctuation">
+                <h2 class="neon-text">🌌 Cosmic Liquid Painter</h2>
+                <div class="control-group">
+                    <label for="liquidType">Liquid Type:</label>
+                    <select id="liquidType" class="holo-select">
+                        <option value="plasma">⚡ Plasma Stream</option>
+                        <option value="crystal">💎 Crystal Liquid</option>
+                        <option value="temporal">⏰ Temporal Flux</option>
+                        <option value="antimatter">☢️ Anti-Matter</option>
+                        <option value="quantum">🌀 Quantum Foam</option>
+                        <option value="dark">🌑 Dark Matter</option>
+                        <option value="exotic">✨ Exotic Matter</option>
+                        <option value="photonic">💡 Photonic Stream</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="launchPower">Launch Power:</label>
+                    <input type="range" id="launchPower" class="holo-slider" min="1" max="100" value="50">
+                    <span id="powerValue">50</span>
+                </div>
+                <div class="control-group">
+                    <button id="clearCanvas" class="holo-button">Clear Canvas</button>
+                    <button id="pauseTime" class="holo-button">Pause</button>
+                    <button id="toggleEffects" class="holo-button">Toggle FX</button>
+                </div>
+            </div>
+            <div id="score" class="holo-panel">
+                <div>Score: <span id="scoreValue">0</span></div>
+                <div>Particles: <span id="particleCount">0</span></div>
+                <div>Stable Orbits: <span id="orbitCount">0</span></div>
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div id="instructions">
+            <p>🎨 <strong>Click and drag</strong> to launch liquid streams</p>
+            <p>🪐 <strong>Right-click</strong> to place gravity wells</p>
+            <p>📷 <strong>Mouse wheel</strong> to zoom, drag to rotate view</p>
+            <p>⏸️ <strong>Space</strong> to pause/resume time</p>
+        </div>
+
+        <!-- Canvas Container -->
+        <div id="canvas-container">
+            <!-- Three.js canvas will be inserted here -->
+        </div>
+    </div>
+
+    <!-- Particle field background -->
+    <div class="particle-field" id="particleField"></div>
+    
+    <!-- Achievement popup container -->
+    <div id="achievementContainer"></div>
+    
+    <!-- Load Three.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    
+    <!-- Load our modules -->
+    <script src="js/utils/math.js"></script>
+    <script src="js/physics/particle.js"></script>
+    <script src="js/physics/gravity.js"></script>
+    <script src="js/physics/quantum.js"></script>
+    <script src="js/rendering/scene.js"></script>
+    <script src="js/rendering/effects.js"></script>
+    <script src="js/rendering/gpu-particles.js"></script>
+    <script src="js/rendering/post-processing.js"></script>
+    <script src="js/game/controls.js"></script>
+    <script src="js/game/scoring.js"></script>
+    <script src="js/ui/holographic.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

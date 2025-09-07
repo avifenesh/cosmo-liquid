@@ -1,0 +1,515 @@
+/* SPECTACULAR Holographic UI with Mind-Blowing Animations */
+
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
+/* Holographic color palette */
+:root {
+    --holo-cyan: #00ffff;
+    --holo-magenta: #ff00ff;
+    --holo-yellow: #ffff00;
+    --holo-blue: #0080ff;
+    --holo-purple: #8000ff;
+    --holo-green: #00ff80;
+    --glow-intensity: 0 0 20px;
+    --animation-speed: 3s;
+}
+
+/* Spectacular holographic panel base */
+.holo-panel {
+    position: relative;
+    background: linear-gradient(135deg, 
+        rgba(0, 255, 255, 0.05) 0%,
+        rgba(255, 0, 255, 0.05) 50%,
+        rgba(0, 128, 255, 0.05) 100%);
+    backdrop-filter: blur(20px) saturate(200%);
+    border: 2px solid transparent;
+    border-image: linear-gradient(
+        45deg,
+        var(--holo-cyan),
+        var(--holo-magenta),
+        var(--holo-yellow),
+        var(--holo-cyan)
+    ) 1;
+    animation: holo-border-animation var(--animation-speed) linear infinite;
+    overflow: hidden;
+}
+
+/* Animated holographic border */
+@keyframes holo-border-animation {
+    0% {
+        border-image-source: linear-gradient(
+            45deg,
+            var(--holo-cyan),
+            var(--holo-magenta),
+            var(--holo-yellow),
+            var(--holo-cyan)
+        );
+    }
+    33% {
+        border-image-source: linear-gradient(
+            45deg,
+            var(--holo-magenta),
+            var(--holo-yellow),
+            var(--holo-cyan),
+            var(--holo-magenta)
+        );
+    }
+    66% {
+        border-image-source: linear-gradient(
+            45deg,
+            var(--holo-yellow),
+            var(--holo-cyan),
+            var(--holo-magenta),
+            var(--holo-yellow)
+        );
+    }
+    100% {
+        border-image-source: linear-gradient(
+            45deg,
+            var(--holo-cyan),
+            var(--holo-magenta),
+            var(--holo-yellow),
+            var(--holo-cyan)
+        );
+    }
+}
+
+/* Holographic grid overlay */
+.holo-panel::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: 
+        repeating-linear-gradient(
+            0deg,
+            rgba(0, 255, 255, 0.03) 0px,
+            transparent 1px,
+            transparent 2px,
+            rgba(0, 255, 255, 0.03) 3px
+        ),
+        repeating-linear-gradient(
+            90deg,
+            rgba(255, 0, 255, 0.03) 0px,
+            transparent 1px,
+            transparent 2px,
+            rgba(255, 0, 255, 0.03) 3px
+        );
+    animation: holo-scan 8s linear infinite;
+    pointer-events: none;
+}
+
+/* Scanning line effect */
+@keyframes holo-scan {
+    0% {
+        transform: translateY(0);
+    }
+    100% {
+        transform: translateY(10px);
+    }
+}
+
+/* Holographic glitch effect */
+.holo-panel::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        180deg,
+        transparent 0%,
+        rgba(0, 255, 255, 0.1) 50%,
+        transparent 100%
+    );
+    height: 20%;
+    animation: holo-glitch 4s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes holo-glitch {
+    0%, 100% {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    50% {
+        transform: translateY(500%);
+        opacity: 1;
+    }
+}
+
+/* Spectacular neon text */
+.neon-text {
+    font-family: 'Orbitron', monospace;
+    font-weight: 900;
+    text-transform: uppercase;
+    background: linear-gradient(
+        45deg,
+        var(--holo-cyan),
+        var(--holo-magenta),
+        var(--holo-yellow)
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: 
+        0 0 10px var(--holo-cyan),
+        0 0 20px var(--holo-cyan),
+        0 0 30px var(--holo-magenta),
+        0 0 40px var(--holo-magenta);
+    animation: neon-pulse 2s ease-in-out infinite;
+}
+
+@keyframes neon-pulse {
+    0%, 100% {
+        filter: brightness(1) saturate(1);
+    }
+    50% {
+        filter: brightness(1.5) saturate(1.5);
+    }
+}
+
+/* Holographic buttons with spectacular effects */
+.holo-button {
+    position: relative;
+    padding: 15px 30px;
+    font-family: 'Orbitron', monospace;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: linear-gradient(
+        135deg,
+        rgba(0, 255, 255, 0.2),
+        rgba(255, 0, 255, 0.2)
+    );
+    border: 2px solid var(--holo-cyan);
+    color: var(--holo-cyan);
+    cursor: pointer;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    box-shadow: 
+        0 0 20px rgba(0, 255, 255, 0.5),
+        inset 0 0 20px rgba(0, 255, 255, 0.1);
+}
+
+/* Button hover state with energy surge */
+.holo-button:hover {
+    transform: translateY(-5px) scale(1.05);
+    border-color: var(--holo-magenta);
+    color: var(--holo-magenta);
+    box-shadow: 
+        0 10px 40px rgba(255, 0, 255, 0.8),
+        inset 0 0 30px rgba(255, 0, 255, 0.3),
+        0 0 60px rgba(255, 0, 255, 0.4);
+}
+
+/* Energy wave animation on hover */
+.holo-button::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle,
+        rgba(255, 255, 255, 0.8),
+        transparent
+    );
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.holo-button:hover::before {
+    width: 300px;
+    height: 300px;
+    animation: energy-wave 0.6s ease-out;
+}
+
+@keyframes energy-wave {
+    0% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+/* Spectacular particle effects for buttons */
+.holo-button::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(
+        45deg,
+        var(--holo-cyan),
+        var(--holo-magenta),
+        var(--holo-yellow),
+        var(--holo-cyan)
+    );
+    border-radius: inherit;
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s;
+    animation: rotate-gradient 2s linear infinite;
+}
+
+.holo-button:hover::after {
+    opacity: 1;
+}
+
+@keyframes rotate-gradient {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* Holographic slider with energy flow */
+.holo-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 8px;
+    background: linear-gradient(
+        90deg,
+        var(--holo-cyan) 0%,
+        var(--holo-magenta) 50%,
+        var(--holo-yellow) 100%
+    );
+    border-radius: 4px;
+    outline: none;
+    position: relative;
+    box-shadow: 
+        0 0 20px rgba(0, 255, 255, 0.5),
+        inset 0 0 10px rgba(255, 0, 255, 0.3);
+}
+
+.holo-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    background: radial-gradient(
+        circle,
+        var(--holo-cyan),
+        var(--holo-magenta)
+    );
+    border: 3px solid var(--holo-yellow);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 
+        0 0 30px var(--holo-cyan),
+        0 0 60px var(--holo-magenta);
+    animation: thumb-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes thumb-pulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 
+            0 0 30px var(--holo-cyan),
+            0 0 60px var(--holo-magenta);
+    }
+    50% {
+        transform: scale(1.2);
+        box-shadow: 
+            0 0 40px var(--holo-cyan),
+            0 0 80px var(--holo-magenta);
+    }
+}
+
+/* Holographic select dropdown */
+.holo-select {
+    position: relative;
+    background: linear-gradient(
+        135deg,
+        rgba(0, 255, 255, 0.1),
+        rgba(255, 0, 255, 0.1)
+    );
+    border: 2px solid var(--holo-cyan);
+    color: var(--holo-cyan);
+    font-family: 'Orbitron', monospace;
+    font-weight: 600;
+    padding: 10px 15px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.holo-select:hover {
+    border-color: var(--holo-magenta);
+    box-shadow: 
+        0 0 30px rgba(255, 0, 255, 0.6),
+        inset 0 0 20px rgba(255, 0, 255, 0.2);
+}
+
+/* Floating particles animation */
+.particle-field {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 1;
+}
+
+.particle {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: var(--holo-cyan);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--holo-cyan);
+    animation: float-particle 20s linear infinite;
+}
+
+@keyframes float-particle {
+    0% {
+        transform: translateY(100vh) translateX(0) scale(0);
+        opacity: 0;
+    }
+    10% {
+        opacity: 1;
+    }
+    90% {
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-100vh) translateX(100px) scale(1.5);
+        opacity: 0;
+    }
+}
+
+/* Quantum fluctuation effect for panels */
+.quantum-fluctuation {
+    animation: quantum-shift 5s ease-in-out infinite;
+}
+
+@keyframes quantum-shift {
+    0%, 100% {
+        transform: perspective(1000px) rotateX(0deg) rotateY(0deg);
+    }
+    25% {
+        transform: perspective(1000px) rotateX(1deg) rotateY(-1deg);
+    }
+    50% {
+        transform: perspective(1000px) rotateX(-1deg) rotateY(1deg);
+    }
+    75% {
+        transform: perspective(1000px) rotateX(0.5deg) rotateY(-0.5deg);
+    }
+}
+
+/* Achievement popup with fireworks */
+.achievement-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    padding: 30px;
+    background: linear-gradient(
+        135deg,
+        rgba(255, 215, 0, 0.2),
+        rgba(255, 0, 255, 0.2)
+    );
+    border: 3px solid gold;
+    border-radius: 20px;
+    box-shadow: 
+        0 0 50px gold,
+        0 0 100px rgba(255, 215, 0, 0.5),
+        inset 0 0 50px rgba(255, 215, 0, 0.2);
+    animation: achievement-appear 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+    z-index: 10000;
+}
+
+@keyframes achievement-appear {
+    to {
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+.firework {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: gold;
+    border-radius: 50%;
+    animation: firework-explode 1s ease-out forwards;
+}
+
+@keyframes firework-explode {
+    0% {
+        transform: translate(0, 0) scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(var(--x), var(--y)) scale(0);
+        opacity: 0;
+    }
+}
+
+/* Loading animation - Cosmic spinner */
+.cosmic-loader {
+    width: 100px;
+    height: 100px;
+    position: relative;
+    animation: cosmic-rotate 2s linear infinite;
+}
+
+.cosmic-loader::before,
+.cosmic-loader::after {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    border: 3px solid transparent;
+}
+
+.cosmic-loader::before {
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-top-color: var(--holo-cyan);
+    border-bottom-color: var(--holo-magenta);
+    animation: cosmic-spin 1.5s linear infinite;
+}
+
+.cosmic-loader::after {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    border-left-color: var(--holo-yellow);
+    border-right-color: var(--holo-green);
+    animation: cosmic-spin 1s linear infinite reverse;
+}
+
+@keyframes cosmic-rotate {
+    0% {
+        transform: rotate(0deg) scale(1);
+    }
+    50% {
+        transform: rotate(180deg) scale(1.1);
+    }
+    100% {
+        transform: rotate(360deg) scale(1);
+    }
+}
+
+@keyframes cosmic-spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
