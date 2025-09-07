@@ -48,26 +48,20 @@ export class ParticleSystem {
     }
     
     createParticleGeometry() {
-        this.particleGeometry = new THREE.BufferGeometry();
-        
-        // Create a single point geometry that will be instanced
-        const vertices = new Float32Array([0, 0, 0]);
-        this.particleGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-        
-        // Create buffer attributes for particle data
-        this.particleGeometry.setAttribute('instancePosition', 
-            new THREE.InstancedBufferAttribute(this.positions, 3));
-        this.particleGeometry.setAttribute('instanceVelocity',
-            new THREE.InstancedBufferAttribute(this.velocities, 3));
-        this.particleGeometry.setAttribute('instanceColor',
-            new THREE.InstancedBufferAttribute(this.colors, 3));
-        this.particleGeometry.setAttribute('instanceSize',
-            new THREE.InstancedBufferAttribute(this.sizes, 1));
-        this.particleGeometry.setAttribute('instanceAge',
-            new THREE.InstancedBufferAttribute(this.ages, 1));
-        
-        // Set initial instance count
-        this.particleGeometry.instanceCount = 0;
+      this.particleGeometry = new THREE.BufferGeometry();
+
+      // Create buffer attributes for particle data (for Points rendering)
+      this.particleGeometry.setAttribute(
+        "position",
+        new THREE.BufferAttribute(this.positions, 3)
+      );
+      this.particleGeometry.setAttribute(
+        "color",
+        new THREE.BufferAttribute(this.colors, 3)
+      );
+
+      // Set initial vertex count
+      this.particleGeometry.setDrawRange(0, 0);
     }
     
     startStream(config) {
@@ -117,17 +111,21 @@ export class ParticleSystem {
     }
     
     generateStreamParticles(deltaTime) {
-        const particlesToGenerate = Math.floor(this.streamConfig.streamRate * deltaTime);
-        
-        for (let i = 0; i < particlesToGenerate; i++) {
-            if (this.activeParticles.size >= this.maxParticles) break;
-            
-            const particle = this.acquireParticle();
-            if (!particle) break;
-            
-            this.initializeStreamParticle(particle, this.streamConfig);
-            this.activeParticles.add(particle);
-        }
+      // Generate particles more aggressively for visibility
+      const particlesToGenerate = Math.max(
+        1,
+        Math.floor(this.streamConfig.streamRate * 60 * deltaTime)
+      );
+
+      for (let i = 0; i < particlesToGenerate; i++) {
+        if (this.activeParticles.size >= this.maxParticles) break;
+
+        const particle = this.acquireParticle();
+        if (!particle) break;
+
+        this.initializeStreamParticle(particle, this.streamConfig);
+        this.activeParticles.add(particle);
+      }
     }
     
     initializeStreamParticle(particle, config) {
@@ -337,38 +335,26 @@ export class ParticleSystem {
         let index = 0;
         
         for (const particle of this.activeParticles) {
-            if (!particle.active) continue;
-            
-            // Update position
-            this.positions[index * 3] = particle.position.x;
-            this.positions[index * 3 + 1] = particle.position.y;
-            this.positions[index * 3 + 2] = particle.position.z;
-            
-            // Update velocity (for shader effects)
-            this.velocities[index * 3] = particle.velocity.x;
-            this.velocities[index * 3 + 1] = particle.velocity.y;
-            this.velocities[index * 3 + 2] = particle.velocity.z;
-            
-            // Update color
-            this.colors[index * 3] = particle.color.r;
-            this.colors[index * 3 + 1] = particle.color.g;
-            this.colors[index * 3 + 2] = particle.color.b;
-            
-            // Update size and age
-            this.sizes[index] = particle.size;
-            this.ages[index] = particle.age;
-            
-            index++;
+          if (!particle.active) continue;
+
+          // Update position
+          this.positions[index * 3] = particle.position.x;
+          this.positions[index * 3 + 1] = particle.position.y;
+          this.positions[index * 3 + 2] = particle.position.z;
+
+          // Update color
+          this.colors[index * 3] = particle.color.r;
+          this.colors[index * 3 + 1] = particle.color.g;
+          this.colors[index * 3 + 2] = particle.color.b;
+
+          index++;
         }
-        
-        // Update geometry attributes
+
+        // Update geometry attributes and draw range
         if (this.particleGeometry) {
-            this.particleGeometry.instanceCount = index;
-            this.particleGeometry.attributes.instancePosition.needsUpdate = true;
-            this.particleGeometry.attributes.instanceVelocity.needsUpdate = true;
-            this.particleGeometry.attributes.instanceColor.needsUpdate = true;
-            this.particleGeometry.attributes.instanceSize.needsUpdate = true;
-            this.particleGeometry.attributes.instanceAge.needsUpdate = true;
+          this.particleGeometry.setDrawRange(0, index);
+          this.particleGeometry.attributes.position.needsUpdate = true;
+          this.particleGeometry.attributes.color.needsUpdate = true;
         }
     }
     

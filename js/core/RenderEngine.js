@@ -121,6 +121,17 @@ export class RenderEngine {
         });
     }
     
+    setupParticleSystem(particleSystem) {
+        // Create Points mesh using particle geometry
+        if (particleSystem && particleSystem.particleGeometry) {
+            this.particleMesh = new THREE.Points(particleSystem.particleGeometry, this.particleMaterial);
+            this.scene.add(this.particleMesh);
+            console.log('Particle mesh added to scene');
+            return this.particleMesh;
+        }
+        return null;
+    }
+    
     createParticleTexture() {
         const canvas = document.createElement('canvas');
         canvas.width = 64;
@@ -236,9 +247,6 @@ export class RenderEngine {
         this.camera.updateProjectionMatrix();
         
         this.renderer.setSize(width, height);
-        
-        // Update material uniforms that depend on screen size
-        this.particleMaterial.uniforms.scale.value = height / 2.0;
     }
     
     // Shader code

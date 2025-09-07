@@ -52,6 +52,9 @@ class CosmoLiquid {
             this.physicsEngine = new PhysicsEngine();
             this.particleSystem = new ParticleSystem(this.physicsEngine);
             
+            // Connect particle system to render engine
+            this.renderEngine.setupParticleSystem(this.particleSystem);
+            
             await this.updateLoadingProgress(60, 'Initializing audio system...');
             
             this.audioEngine = new AudioEngine();
