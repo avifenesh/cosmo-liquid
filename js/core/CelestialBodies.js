@@ -211,15 +211,15 @@ export class CelestialBodies {
         let material;
         
         // Create unique material for each celestial type
-        switch(celestialData.name) {
-            case 'Sun':
-                // Sun - realistic solar surface with granulation and flares
-                material = new THREE.ShaderMaterial({
-                    uniforms: {
-                        time: { value: 0.0 },
-                        intensity: { value: 2.0 }
-                    },
-                    vertexShader: `
+        switch (celestialData.name) {
+          case "Sun":
+            // Sun - realistic solar surface with granulation and flares
+            material = new THREE.ShaderMaterial({
+              uniforms: {
+                time: { value: 0.0 },
+                intensity: { value: 2.0 },
+              },
+              vertexShader: `
                         uniform float time;
                         varying vec2 vUv;
                         varying vec3 vNormal;
@@ -248,7 +248,7 @@ export class CelestialBodies {
                             gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
                         }
                     `,
-                    fragmentShader: `
+              fragmentShader: `
                         uniform float time;
                         uniform float intensity;
                         varying vec2 vUv;
@@ -325,18 +325,18 @@ export class CelestialBodies {
                             gl_FragColor = vec4(finalColor, 1.0);
                         }
                     `,
-                    transparent: false,
-                    blending: THREE.AdditiveBlending
-                });
-                break;
+              transparent: false,
+              blending: THREE.AdditiveBlending,
+            });
+            break;
 
-            case 'Black Hole':
-                // Black hole - event horizon effect
-                material = new THREE.ShaderMaterial({
-                    uniforms: {
-                        time: { value: 0.0 }
-                    },
-                    vertexShader: `
+          case "Black Hole":
+            // Black hole - event horizon effect
+            material = new THREE.ShaderMaterial({
+              uniforms: {
+                time: { value: 0.0 },
+              },
+              vertexShader: `
                         uniform float time;
                         varying vec2 vUv;
                         
@@ -351,7 +351,7 @@ export class CelestialBodies {
                             gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
                         }
                     `,
-                    fragmentShader: `
+              fragmentShader: `
                         uniform float time;
                         varying vec2 vUv;
                         
@@ -370,72 +370,122 @@ export class CelestialBodies {
                             }
                         }
                     `,
-                    transparent: false
-                });
-                break;
+              transparent: false,
+            });
+            break;
 
-            case 'Neutron Star':
-                // Neutron star - intense pulsing
-                material = new THREE.ShaderMaterial({
-                    uniforms: {
-                        time: { value: 0.0 },
-                        color: { value: celestialData.color }
-                    },
-                    vertexShader: `
+          case "Neutron Star":
+            // Neutron Star - intense pulsing + magnetosphere hint
+            material = new THREE.ShaderMaterial({
+              uniforms: {
+                time: { value: 0.0 },
+                baseColor: { value: new THREE.Color(0x9966ff) },
+                pulseIntensity: { value: 1.0 },
+              },
+              vertexShader: `
                         uniform float time;
+                        varying vec3 vNormal;
                         varying vec2 vUv;
-                        
-                        void main() {
+                        void main(){
+                            vNormal = normalMatrix * normal;
                             vUv = uv;
-                            vec3 pos = position;
-                            
-                            // Rapid pulsing
-                            float pulse = 1.0 + 0.2 * sin(time * 20.0);
-                            pos *= pulse;
-                            
-                            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+                            // Slight oblateness due to rapid rotation
+                            vec3 p = position;
+                            p.y *= 0.97 + 0.02 * sin(time * 30.0);
+                            // Rapid core pulse
+                            float pulse = 1.0 + 0.05 * sin(time * 40.0);
+                            p *= pulse;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(p,1.0);
                         }
                     `,
-                    fragmentShader: `
+              fragmentShader: `
                         uniform float time;
-                        uniform vec3 color;
+                        uniform vec3 baseColor;
+                        uniform float pulseIntensity;
+                        varying vec3 vNormal;
                         varying vec2 vUv;
-                        
-                        void main() {
-                            // Intense purple-white core
-                            vec2 center = vec2(0.5, 0.5);
-                            float dist = distance(vUv, center);
-                            
-                            float intensity = 1.0 - dist * 2.0;
-                            intensity = max(0.0, intensity);
-                            
-                            vec3 finalColor = mix(vec3(0.5, 0.2, 1.0), vec3(1.0), intensity);
-                            
-                            gl_FragColor = vec4(finalColor, 1.0);
+                        float hash(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}                        
+                        void main(){
+                            float nd = max(dot(normalize(vNormal), vec3(0.0,0.0,1.0)), 0.0);
+                            float rim = pow(1.0-nd, 2.0);
+                            float flicker = 0.9 + 0.1 * sin(time * 60.0 + hash(vUv*200.0)*10.0);
+                            vec3 core = mix(baseColor*1.2, vec3(1.0), pow(nd,3.0));
+                            vec3 color = core * flicker * (1.0 + rim * 0.5);
+                            gl_FragColor = vec4(color, 1.0);
                         }
                     `,
-                    transparent: false,
-                    blending: THREE.AdditiveBlending
-                });
-                break;
+              transparent: false,
+              blending: THREE.AdditiveBlending,
+            });
+            break;
 
-            case 'White Dwarf':
-                // White dwarf - intense white glow
-                material = new THREE.MeshBasicMaterial({
-                    color: 0xffffff,
-                    emissive: 0xffffff,
-                    emissiveIntensity: 1.0
-                });
-                break;
+          case "White Dwarf":
+            // White Dwarf - dense hot core with subtle bluish halo & flicker
+            material = new THREE.ShaderMaterial({
+              uniforms: {
+                time: { value: 0.0 },
+                baseColor: { value: new THREE.Color(0xffffff) },
+                temperature: { value: 1.0 },
+              },
+              vertexShader: `
+                        uniform float time;
+                        varying vec3 vNormal;
+                        varying vec2 vUv;
+                        varying float vRadial;
+                        void main() {
+                            vNormal = normalMatrix * normal;
+                            vUv = uv;
+                            // Radial factor for limb darkening / glow falloff
+                            vRadial = length(position) / length(vec3(1.0));
+                            // Tiny pulsation (white dwarf quasi-static)
+                            float pulsate = 1.0 + 0.01 * sin(time * 6.0 + position.y * 10.0);
+                            vec3 displaced = position * pulsate;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
+                        }
+                    `,
+              fragmentShader: `
+                        uniform float time;
+                        uniform vec3 baseColor;
+                        uniform float temperature;
+                        varying vec3 vNormal;
+                        varying vec2 vUv;
+                        varying float vRadial;
+                        // Simple hash noise
+                        float hash(vec2 p){
+                            p = fract(p * vec2(123.34, 456.21));
+                            p += dot(p, p + 45.32);
+                            return fract(p.x * p.y);
+                        }
+                        void main(){
+                            // Limb darkening using view-aligned normal
+                            float nd = max(dot(normalize(vNormal), vec3(0.0,0.0,1.0)), 0.0);
+                            float limb = pow(nd, 0.35);
+                            // Subtle surface mottling
+                            float n = hash(vUv * 40.0) * 0.5 + hash(vUv * 80.0) * 0.3;
+                            // High-frequency flicker (scaled down for realism)
+                            float flicker = 0.95 + 0.05 * sin(time * 50.0 + n * 10.0);
+                            // Bluish-white core color variation by limb darkening
+                            vec3 hotBlue = vec3(0.85, 0.90, 1.0);
+                            vec3 core = mix(hotBlue, baseColor, limb);
+                            vec3 color = core * flicker * (1.1 + n * 0.1);
+                            gl_FragColor = vec4(color, 1.0);
+                        }
+                    `,
+              transparent: false,
+              blending: THREE.AdditiveBlending,
+            });
+            break;
 
-            case 'Jupiter':
-                // Jupiter - realistic banded atmosphere with Great Red Spot
-                material = new THREE.ShaderMaterial({
-                    uniforms: {
-                        time: { value: 0.0 },
-                        sunDirection: { value: new THREE.Vector3(1, 0.5, 0.5).normalize() }
-                    },
-                    vertexShader: `
+          case "Jupiter":
+            // Jupiter - realistic banded atmosphere with Great Red Spot
+            material = new THREE.ShaderMaterial({
+              uniforms: {
+                time: { value: 0.0 },
+                sunDirection: {
+                  value: new THREE.Vector3(1, 0.5, 0.5).normalize(),
+                },
+              },
+              vertexShader: `
                         varying vec2 vUv;
                         varying vec3 vNormal;
                         varying vec3 vPosition;
@@ -447,7 +497,7 @@ export class CelestialBodies {
                             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                         }
                     `,
-                    fragmentShader: `
+              fragmentShader: `
                         uniform float time;
                         uniform vec3 sunDirection;
                         varying vec2 vUv;
@@ -516,18 +566,20 @@ export class CelestialBodies {
                             gl_FragColor = vec4(finalColor, 1.0);
                         }
                     `,
-                    transparent: false
-                });
-                break;
+              transparent: false,
+            });
+            break;
 
-            case 'Mars':
-                // Mars - realistic red planet with dust and polar caps
-                material = new THREE.ShaderMaterial({
-                    uniforms: {
-                        time: { value: 0.0 },
-                        sunDirection: { value: new THREE.Vector3(1, 0.5, 0.5).normalize() }
-                    },
-                    vertexShader: `
+          case "Mars":
+            // Mars - realistic red planet with dust and polar caps
+            material = new THREE.ShaderMaterial({
+              uniforms: {
+                time: { value: 0.0 },
+                sunDirection: {
+                  value: new THREE.Vector3(1, 0.5, 0.5).normalize(),
+                },
+              },
+              vertexShader: `
                         varying vec3 vNormal;
                         varying vec2 vUv;
                         varying vec3 vPosition;
@@ -539,7 +591,7 @@ export class CelestialBodies {
                             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                         }
                     `,
-                    fragmentShader: `
+              fragmentShader: `
                         uniform float time;
                         uniform vec3 sunDirection;
                         varying vec3 vNormal;
@@ -593,18 +645,20 @@ export class CelestialBodies {
                             gl_FragColor = vec4(finalColor, 1.0);
                         }
                     `,
-                    transparent: false
-                });
-                break;
+              transparent: false,
+            });
+            break;
 
-            case 'Earth':
-                // Earth - realistic with continents, oceans, and clouds
-                material = new THREE.ShaderMaterial({
-                    uniforms: {
-                        time: { value: 0.0 },
-                        sunDirection: { value: new THREE.Vector3(1, 0.5, 0.5).normalize() }
-                    },
-                    vertexShader: `
+          case "Earth":
+            // Earth - realistic with continents, oceans, and clouds
+            material = new THREE.ShaderMaterial({
+              uniforms: {
+                time: { value: 0.0 },
+                sunDirection: {
+                  value: new THREE.Vector3(1, 0.5, 0.5).normalize(),
+                },
+              },
+              vertexShader: `
                         varying vec3 vNormal;
                         varying vec2 vUv;
                         varying vec3 vPosition;
@@ -616,7 +670,7 @@ export class CelestialBodies {
                             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                         }
                     `,
-                    fragmentShader: `
+              fragmentShader: `
                         uniform float time;
                         uniform vec3 sunDirection;
                         varying vec3 vNormal;
@@ -698,17 +752,19 @@ export class CelestialBodies {
                             gl_FragColor = vec4(finalColor, 1.0);
                         }
                     `,
-                    transparent: false
-                });
-                break;
+              transparent: false,
+            });
+            break;
 
-            case 'Moon':
-                // Moon - realistic lunar surface with craters
-                material = new THREE.ShaderMaterial({
-                    uniforms: {
-                        sunDirection: { value: new THREE.Vector3(1, 0.5, 0.5).normalize() }
-                    },
-                    vertexShader: `
+          case "Moon":
+            // Moon - realistic lunar surface with craters
+            material = new THREE.ShaderMaterial({
+              uniforms: {
+                sunDirection: {
+                  value: new THREE.Vector3(1, 0.5, 0.5).normalize(),
+                },
+              },
+              vertexShader: `
                         varying vec3 vNormal;
                         varying vec2 vUv;
                         varying vec3 vPosition;
@@ -720,7 +776,7 @@ export class CelestialBodies {
                             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                         }
                     `,
-                    fragmentShader: `
+              fragmentShader: `
                         uniform vec3 sunDirection;
                         varying vec3 vNormal;
                         varying vec2 vUv;
@@ -788,15 +844,15 @@ export class CelestialBodies {
                             gl_FragColor = vec4(finalColor, 1.0);
                         }
                     `,
-                    transparent: false
-                });
-                break;
+              transparent: false,
+            });
+            break;
 
-            default:
-                // Fallback material
-                material = new THREE.MeshBasicMaterial({
-                    color: celestialData.color
-                });
+          default:
+            // Fallback material
+            material = new THREE.MeshBasicMaterial({
+              color: celestialData.color,
+            });
         }
         
         const mesh = new THREE.Mesh(geometry, material);
@@ -833,38 +889,44 @@ export class CelestialBodies {
     
     // Add special effects for celestial bodies
     addCelestialEffects(mesh, celestialData) {
-        if (celestialData.visualEffects.rings && celestialData.name === 'Jupiter') {
-            // Add planetary rings
-            const ringGeometry = new THREE.RingGeometry(
-                celestialData.radius * 1.5, 
-                celestialData.radius * 2.2, 
-                32
-            );
-            const ringMaterial = new THREE.MeshBasicMaterial({
-                color: 0x888866,
-                transparent: true,
-                opacity: 0.3,
-                side: THREE.DoubleSide
-            });
-            const rings = new THREE.Mesh(ringGeometry, ringMaterial);
-            rings.rotation.x = Math.PI / 2;
-            mesh.add(rings);
-        }
-        
-        if (celestialData.visualEffects.accretionDisk && celestialData.name === 'Black Hole') {
-            // Add accretion disk for black hole
-            const diskGeometry = new THREE.RingGeometry(
-                celestialData.radius * 1.2, 
-                celestialData.radius * 3.0, 
-                64
-            );
-            const diskMaterial = new THREE.ShaderMaterial({
-                uniforms: {
-                    time: { value: 0.0 },
-                    innerRadius: { value: celestialData.radius * 1.2 },
-                    outerRadius: { value: celestialData.radius * 3.0 }
-                },
-                vertexShader: `
+      if (
+        celestialData.visualEffects.rings &&
+        celestialData.name === "Jupiter"
+      ) {
+        // Add planetary rings
+        const ringGeometry = new THREE.RingGeometry(
+          celestialData.radius * 1.5,
+          celestialData.radius * 2.2,
+          32
+        );
+        const ringMaterial = new THREE.MeshBasicMaterial({
+          color: 0x888866,
+          transparent: true,
+          opacity: 0.3,
+          side: THREE.DoubleSide,
+        });
+        const rings = new THREE.Mesh(ringGeometry, ringMaterial);
+        rings.rotation.x = Math.PI / 2;
+        mesh.add(rings);
+      }
+
+      if (
+        celestialData.visualEffects.accretionDisk &&
+        celestialData.name === "Black Hole"
+      ) {
+        // Add accretion disk for black hole
+        const diskGeometry = new THREE.RingGeometry(
+          celestialData.radius * 1.2,
+          celestialData.radius * 3.0,
+          64
+        );
+        const diskMaterial = new THREE.ShaderMaterial({
+          uniforms: {
+            time: { value: 0.0 },
+            innerRadius: { value: celestialData.radius * 1.2 },
+            outerRadius: { value: celestialData.radius * 3.0 },
+          },
+          vertexShader: `
                     varying vec2 vUv;
                     varying float vRadius;
                     
@@ -874,7 +936,7 @@ export class CelestialBodies {
                         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                     }
                 `,
-                fragmentShader: `
+          fragmentShader: `
                     uniform float time;
                     uniform float innerRadius;
                     uniform float outerRadius;
@@ -897,30 +959,34 @@ export class CelestialBodies {
                         gl_FragColor = vec4(color * intensity, 0.8);
                     }
                 `,
-                transparent: true,
-                blending: THREE.AdditiveBlending,
-                side: THREE.DoubleSide
-            });
-            const disk = new THREE.Mesh(diskGeometry, diskMaterial);
-            disk.rotation.x = Math.PI / 2;
-            mesh.add(disk);
-        }
-        
-        if (celestialData.visualEffects.atmosphere) {
-            // Add atmospheric glow
-            const atmosphereGeometry = new THREE.SphereGeometry(celestialData.radius * 1.1, 32, 16);
-            const atmosphereMaterial = new THREE.ShaderMaterial({
-                uniforms: {
-                    color: { value: celestialData.color }
-                },
-                vertexShader: `
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          side: THREE.DoubleSide,
+        });
+        const disk = new THREE.Mesh(diskGeometry, diskMaterial);
+        disk.rotation.x = Math.PI / 2;
+        mesh.add(disk);
+      }
+
+      if (celestialData.visualEffects.atmosphere) {
+        // Add atmospheric glow
+        const atmosphereGeometry = new THREE.SphereGeometry(
+          celestialData.radius * 1.1,
+          32,
+          16
+        );
+        const atmosphereMaterial = new THREE.ShaderMaterial({
+          uniforms: {
+            color: { value: celestialData.color },
+          },
+          vertexShader: `
                     varying vec3 vNormal;
                     void main() {
                         vNormal = normalize(normalMatrix * normal);
                         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                     }
                 `,
-                fragmentShader: `
+          fragmentShader: `
                     uniform vec3 color;
                     varying vec3 vNormal;
                     
@@ -929,13 +995,114 @@ export class CelestialBodies {
                         gl_FragColor = vec4(color, 1.0) * intensity;
                     }
                 `,
-                blending: THREE.AdditiveBlending,
-                transparent: true,
-                side: THREE.BackSide
-            });
-            const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
-            mesh.add(atmosphere);
-        }
+          blending: THREE.AdditiveBlending,
+          transparent: true,
+          side: THREE.BackSide,
+        });
+        const atmosphere = new THREE.Mesh(
+          atmosphereGeometry,
+          atmosphereMaterial
+        );
+        mesh.add(atmosphere);
+      }
+
+      // Specialized halo for White Dwarf (distinct from generic atmosphere)
+      if (celestialData.name === "White Dwarf") {
+        const haloGeometry = new THREE.SphereGeometry(
+          celestialData.radius * 1.6,
+          32,
+          16
+        );
+        const haloMaterial = new THREE.ShaderMaterial({
+          uniforms: {
+            time: { value: 0.0 },
+            innerColor: { value: new THREE.Color(0xe0f4ff) },
+            outerColor: { value: new THREE.Color(0x6fa8ff) },
+          },
+          vertexShader: `
+                    varying vec3 vNormal;
+                    void main(){
+                        vNormal = normalize(normalMatrix * normal);
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+                    }
+                `,
+          fragmentShader: `
+                    uniform float time;
+                    uniform vec3 innerColor;
+                    uniform vec3 outerColor;
+                    varying vec3 vNormal;
+                    void main(){
+                        float rim = 1.0 - max(dot(vNormal, vec3(0.0,0.0,1.0)), 0.0);
+                        rim = pow(rim, 3.0);
+                        // Subtle breathing
+                        float breathe = 0.8 + 0.2 * sin(time * 2.5 + rim * 10.0);
+                        vec3 color = mix(outerColor, innerColor, rim) * breathe;
+                        gl_FragColor = vec4(color, rim * 0.6);
+                    }
+                `,
+          blending: THREE.AdditiveBlending,
+          transparent: true,
+          depthWrite: false,
+          side: THREE.BackSide,
+        });
+        const halo = new THREE.Mesh(haloGeometry, haloMaterial);
+        halo.userData.isWhiteDwarfHalo = true;
+        mesh.add(halo);
+      }
+
+      // Pulsar beams for Neutron Star
+      if (celestialData.name === "Neutron Star") {
+        const beamMaterial = new THREE.ShaderMaterial({
+          uniforms: {
+            time: { value: 0.0 },
+            color: { value: new THREE.Color(0xbb99ff) },
+          },
+          vertexShader: `
+                    varying vec2 vUv;
+                    void main(){
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+                    }
+                `,
+          fragmentShader: `
+                    uniform float time; uniform vec3 color; varying vec2 vUv;
+                    void main(){
+                        // Soft beam center, fade edges
+                        float d = distance(vUv, vec2(0.5,0.0));
+                        float intensity = smoothstep(0.8,0.0,d);
+                        // Pulse bands
+                        float bands = 0.5 + 0.5 * sin(time*30.0 + vUv.y*20.0);
+                        vec3 col = color * intensity * bands;
+                        gl_FragColor = vec4(col, intensity*0.6);
+                    }
+                `,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        });
+        const beamHeight = celestialData.radius * 6.0;
+        const beamRadius = celestialData.radius * 0.6;
+        // Two opposing cones
+        const coneGeom = new THREE.ConeGeometry(
+          beamRadius,
+          beamHeight,
+          16,
+          1,
+          true
+        );
+        const cone1 = new THREE.Mesh(coneGeom, beamMaterial.clone());
+        cone1.rotation.x = Math.PI; // invert so open end outward
+        cone1.position.y = beamHeight * 0.5;
+        cone1.userData.isPulsarBeam = true;
+        const cone2 = new THREE.Mesh(coneGeom, beamMaterial.clone());
+        cone2.position.y = -beamHeight * 0.5;
+        cone2.userData.isPulsarBeam = true;
+        mesh.add(cone1);
+        mesh.add(cone2);
+        // Group rotation tilt to simulate beam misalignment
+        mesh.userData.pulsarBeamTilt = new THREE.Euler(0.4, 0.0, 0.2);
+      }
     }
     
     // Update celestial body effects
@@ -943,19 +1110,38 @@ export class CelestialBodies {
         const time = performance.now() * 0.001;
         
         for (const [id, body] of this.activeBodies) {
-            // Update shader uniforms for animated effects
-            if (body.visual.material.uniforms) {
-                if (body.visual.material.uniforms.time) {
-                    body.visual.material.uniforms.time.value = time;
-                }
+          // Update shader uniforms for animated effects
+          if (body.visual.material.uniforms) {
+            if (body.visual.material.uniforms.time) {
+              body.visual.material.uniforms.time.value = time;
             }
-            
-            // Update child effects (rings, accretion disks, etc.)
-            body.visual.children.forEach(child => {
-                if (child.material.uniforms && child.material.uniforms.time) {
-                    child.material.uniforms.time.value = time;
-                }
-            });
+          }
+
+          // Update child effects (rings, accretion disks, etc.)
+          body.visual.children.forEach((child) => {
+            if (child.material.uniforms && child.material.uniforms.time) {
+              child.material.uniforms.time.value = time;
+            }
+          });
+
+          // Special neutron star pulsar beam rotation
+          if (body.data.name === "Neutron Star") {
+            // Rotate beams around Y axis to simulate spin
+            const spinSpeed = 2.0; // radians per second
+            body.visual.rotation.y += spinSpeed * (deltaTime || 0.016);
+            // Apply tilt for beams (only once; ensure exists)
+            if (
+              body.visual.userData.pulsarBeamTiltApplied !== true &&
+              body.visual.userData.pulsarBeamTilt
+            ) {
+              body.visual.rotation.x = body.visual.userData.pulsarBeamTilt.x;
+              body.visual.rotation.z = body.visual.userData.pulsarBeamTilt.z;
+              body.visual.userData.pulsarBeamTiltApplied = true;
+            }
+            // Optionally modulate beam alpha via material uniforms (already driven by time)
+          }
+
+          // White dwarf halo breathing already handled by time uniform in child shader
         }
     }
     

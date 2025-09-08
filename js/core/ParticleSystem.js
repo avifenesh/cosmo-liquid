@@ -8,35 +8,38 @@ import { FluidDynamics } from './FluidDynamics.js';
 
 export class ParticleSystem {
     constructor(physicsEngine) {
-        this.physicsEngine = physicsEngine;
-        
-        // SPH fluid dynamics engine
-        this.fluidDynamics = new FluidDynamics();
-        
-        // Particle management
-        this.particles = [];
-        this.activeParticles = new Set();
-        this.particlePool = [];
-        this.maxParticles = 10000;
-        
-        // Streaming state
-        this.isStreaming = false;
-        this.streamConfig = null;
-        this.streamTimer = 0;
-        
-        // Performance optimization
-        this.geometryNeedsUpdate = false;
-        this.particleGeometry = null;
-        this.particleMesh = null;
-        
-        // Typed arrays for efficient GPU communication
-        this.positions = new Float32Array(this.maxParticles * 3);
-        this.velocities = new Float32Array(this.maxParticles * 3);
-        this.colors = new Float32Array(this.maxParticles * 3);
-        this.sizes = new Float32Array(this.maxParticles);
-        this.ages = new Float32Array(this.maxParticles);
-        
-        this.initialize();
+      this.physicsEngine = physicsEngine;
+
+      // SPH fluid dynamics engine
+      this.fluidDynamics = new FluidDynamics();
+
+      // Particle management
+      this.particles = [];
+      this.activeParticles = new Set();
+      this.particlePool = [];
+      this.maxParticles = 10000;
+
+      // Streaming state
+      this.isStreaming = false;
+      this.streamConfig = null;
+      this.streamTimer = 0;
+
+      // Performance optimization
+      this.geometryNeedsUpdate = false;
+      this.particleGeometry = null;
+      this.particleMesh = null;
+
+      // Typed arrays for efficient GPU communication
+      this.positions = new Float32Array(this.maxParticles * 3);
+      this.velocities = new Float32Array(this.maxParticles * 3);
+      this.colors = new Float32Array(this.maxParticles * 3);
+      // Additional per-particle attributes for advanced shaders
+      this.customColors = new Float32Array(this.maxParticles * 3);
+      this.pointSizes = new Float32Array(this.maxParticles);
+      this.sizes = new Float32Array(this.maxParticles);
+      this.ages = new Float32Array(this.maxParticles);
+
+      this.initialize();
     }
     
     initialize() {
@@ -62,6 +65,17 @@ export class ParticleSystem {
       this.particleGeometry.setAttribute(
         "color",
         new THREE.BufferAttribute(this.colors, 3)
+      );
+
+      // Provide customColor attribute expected by some shaders
+      this.particleGeometry.setAttribute(
+        "customColor",
+        new THREE.BufferAttribute(this.customColors, 3)
+      );
+      // Provide size attribute if future shaders want per-particle sizing
+      this.particleGeometry.setAttribute(
+        "size",
+        new THREE.BufferAttribute(this.pointSizes, 1)
       );
 
       // Set initial vertex count
@@ -339,61 +353,70 @@ export class ParticleSystem {
     }
     
     updateParticleVisuals(particle, deltaTime) {
-        // Particles maintain full visibility since they don't fade with age
-        // Visual effects are based on physics state instead of lifetime
-        
-        // Base alpha from velocity (faster = brighter)
-        const speed = particle.velocity.length();
-        const speedAlpha = Math.min(1.0, 0.5 + speed * 0.01);
-        
-        // Density-based brightness (denser areas are brighter)
-        const densityAlpha = particle.density ? 
-            Math.min(1.0, 0.3 + particle.density / this.fluidDynamics.restDensity) : 1.0;
-        
-        // Combined alpha
-        const alpha = speedAlpha * densityAlpha;
-        
-        // Update color intensity based on alpha
-        const baseColor = this.getLiquidColor(particle.liquidType);
-        particle.color.r = baseColor.r * alpha;
-        particle.color.g = baseColor.g * alpha;
-        particle.color.b = baseColor.b * alpha;
-        
-        // Size variation based on liquid type and physics state
-        let sizeMultiplier = 1;
-        
-        switch (particle.liquidType) {
-            case 'plasma':
-                // Pulsing effect based on velocity
-                sizeMultiplier = 0.8 + 0.2 * Math.sin(particle.age * 10 + speed);
-                break;
-            case 'crystal':
-                // Size based on density (crystallization)
-                if (particle.density) {
-                    sizeMultiplier = 0.8 + 0.4 * (particle.density / this.fluidDynamics.restDensity);
-                }
-                break;
-            case 'quantum':
-                // Random size fluctuation
-                sizeMultiplier = 0.7 + 0.3 * Math.random();
-                break;
-            case 'temporal':
-                // Size oscillates with time
-                sizeMultiplier = 1.0 + 0.3 * Math.sin(particle.age * 3);
-                break;
-            case 'darkmatter':
-                // Larger when slow (accumulation)
-                sizeMultiplier = 1.5 - Math.min(0.5, speed * 0.01);
-                break;
-            case 'photonic':
-                // Smaller but brighter when fast
-                sizeMultiplier = 0.5 + Math.min(0.5, speed * 0.02);
-                break;
-            default:
-                sizeMultiplier = 1.0;
-        }
-        
-        particle.size = particle.baseSize * sizeMultiplier;
+      // Particles maintain full visibility since they don't fade with age
+      // Visual effects are based on physics state instead of lifetime
+
+      // Base alpha from velocity (faster = brighter)
+      const speed = particle.velocity.length();
+      const speedAlpha = Math.min(1.0, 0.5 + speed * 0.01);
+
+      // Density-based brightness (denser areas are brighter)
+      const densityAlpha = particle.density
+        ? Math.min(1.0, 0.3 + particle.density / this.fluidDynamics.restDensity)
+        : 1.0;
+
+      // Combined alpha
+      const alpha = speedAlpha * densityAlpha;
+
+      // Update color intensity based on alpha
+      const baseColor = this.getLiquidColor(particle.liquidType);
+      // Smooth color transitions for fluid feel (lerp toward target)
+      const smoothFactor = 1.0 - Math.pow(0.0005, deltaTime * 60.0); // frame-rate independent
+      particle.color.r +=
+        (baseColor.r * alpha - particle.color.r) * smoothFactor;
+      particle.color.g +=
+        (baseColor.g * alpha - particle.color.g) * smoothFactor;
+      particle.color.b +=
+        (baseColor.b * alpha - particle.color.b) * smoothFactor;
+
+      // Size variation based on liquid type and physics state
+      let sizeMultiplier = 1;
+
+      switch (particle.liquidType) {
+        case "plasma":
+          // Pulsing effect based on velocity
+          sizeMultiplier = 0.8 + 0.2 * Math.sin(particle.age * 10 + speed);
+          break;
+        case "crystal":
+          // Size based on density (crystallization)
+          if (particle.density) {
+            sizeMultiplier =
+              0.8 + 0.4 * (particle.density / this.fluidDynamics.restDensity);
+          }
+          break;
+        case "quantum":
+          // Random size fluctuation
+          sizeMultiplier = 0.7 + 0.3 * Math.random();
+          break;
+        case "temporal":
+          // Size oscillates with time
+          sizeMultiplier = 1.0 + 0.3 * Math.sin(particle.age * 3);
+          break;
+        case "darkmatter":
+          // Larger when slow (accumulation)
+          sizeMultiplier = 1.5 - Math.min(0.5, speed * 0.01);
+          break;
+        case "photonic":
+          // Smaller but brighter when fast
+          sizeMultiplier = 0.5 + Math.min(0.5, speed * 0.02);
+          break;
+        default:
+          sizeMultiplier = 1.0;
+      }
+
+      const targetSize = particle.baseSize * sizeMultiplier;
+      // Smooth size interpolation
+      particle.size += (targetSize - particle.size) * smoothFactor;
     }
     
     updateGeometryAttributes() {
@@ -412,6 +435,14 @@ export class ParticleSystem {
           this.colors[index * 3 + 1] = particle.color.g;
           this.colors[index * 3 + 2] = particle.color.b;
 
+          // Update customColor (raw base color before brightness modulation)
+          this.customColors[index * 3] = particle.color.r;
+          this.customColors[index * 3 + 1] = particle.color.g;
+          this.customColors[index * 3 + 2] = particle.color.b;
+
+          // Update per-particle size (used by potential size-aware shaders)
+          this.pointSizes[index] = particle.size;
+
           index++;
         }
 
@@ -420,6 +451,12 @@ export class ParticleSystem {
           this.particleGeometry.setDrawRange(0, index);
           this.particleGeometry.attributes.position.needsUpdate = true;
           this.particleGeometry.attributes.color.needsUpdate = true;
+                    if (this.particleGeometry.attributes.customColor) {
+                      this.particleGeometry.attributes.customColor.needsUpdate = true;
+                    }
+                    if (this.particleGeometry.attributes.size) {
+                      this.particleGeometry.attributes.size.needsUpdate = true;
+                    }
         }
     }
     

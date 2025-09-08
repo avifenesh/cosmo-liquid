@@ -269,5 +269,42 @@
     
     <!-- Core application -->
     <script type="module" src="js/main.js"></script>
+    <!-- Global error & performance diagnostics overlay -->
+    <script>
+        (function () {
+            const support = {
+                importMap: (() => {
+                    try { return HTMLScriptElement.supports && HTMLScriptElement.supports('importmap'); } catch (e) { return false; }
+                })()
+            };
+            if (!support.importMap) {
+                console.warn('[CosmoLiquid] Your browser may not fully support import maps. Please use latest Chrome / Edge / Firefox.');
+            }
+            const overlay = document.createElement('div');
+            overlay.id = 'error-overlay';
+            Object.assign(overlay.style, {
+                position: 'fixed', top: '0', left: '0', maxWidth: '50vw', zIndex: 2000,
+                fontFamily: 'Courier New, monospace', background: 'rgba(0,0,0,0.7)',
+                color: '#ff5555', padding: '8px 12px', fontSize: '11px', lineHeight: '1.4',
+                pointerEvents: 'auto', display: 'none', whiteSpace: 'pre-wrap'
+            });
+            overlay.innerText = 'Errors:';
+            document.body.appendChild(overlay);
+            const showError = (msg) => {
+                overlay.style.display = 'block';
+                overlay.innerText += '\n' + msg;
+            };
+            window.addEventListener('error', (e) => {
+                showError(`[Error] ${e.message} @ ${e.filename}:${e.lineno}`);
+            });
+            window.addEventListener('unhandledrejection', (e) => {
+                showError('[Promise Rejection] ' + (e.reason && e.reason.message ? e.reason.message : e.reason));
+            });
+            // Simple ready log
+            document.addEventListener('DOMContentLoaded', () => {
+                console.log('%c[CosmoLiquid] DOM ready. Initializing...', 'color:#0ff');
+            });
+        })();
+    </script>
 </body>
 </html>

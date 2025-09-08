@@ -6,6 +6,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { VisualEffects } from './VisualEffects.js';
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 
 export class RenderEngine {
     constructor(container) {
@@ -232,8 +235,18 @@ export class RenderEngine {
     }
     
     setupPostProcessing() {
-        // TODO: Implement bloom and other effects in future iterations
-        // For now, we'll use the basic renderer
+      // Basic bloom post-processing for liquid glow enhancement
+      this.composer = new EffectComposer(this.renderer);
+      const renderPass = new RenderPass(this.scene, this.camera);
+      this.composer.addPass(renderPass);
+      const bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        1.2, // strength
+        0.4, // radius
+        0.85 // threshold
+      );
+      this.composer.addPass(bloomPass);
+      this.bloomPass = bloomPass;
     }
     
     screenToWorld(screenPosition) {
@@ -309,8 +322,11 @@ export class RenderEngine {
             }
         });
         
-        // Render the scene
+        if (this.composer) {
+          this.composer.render();
+        } else {
         this.renderer.render(this.scene, this.camera);
+        }
     }
     
     handleResize() {
@@ -321,6 +337,9 @@ export class RenderEngine {
         this.camera.updateProjectionMatrix();
         
         this.renderer.setSize(width, height);
+        if (this.composer) {
+          this.composer.setSize(width, height);
+        }
     }
     
     // Shader code

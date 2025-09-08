@@ -7,30 +7,34 @@ import * as THREE from 'three';
 
 export class VisualEffects {
     constructor(renderer) {
-        this.renderer = renderer;
-        
-        // Shader materials for each liquid type
-        this.liquidMaterials = new Map();
-        this.trailSystems = new Map();
-        this.effectMeshes = new Map();
-        
-        // Post-processing effects
-        this.bloomPass = null;
-        this.chromaticAberrationPass = null;
-        this.filmGrainPass = null;
-        
-        // Texture atlases for effects
-        this.particleTextures = new Map();
-        this.noiseTextures = new Map();
-        
-        // Performance settings
-        this.qualityLevel = 'high'; // high, medium, low
-        this.effectsEnabled = true;
-        
-        // Time uniform for animations
-        this.time = 0;
-        
-        this.initialize();
+      this.renderer = renderer;
+
+      // Shader materials for each liquid type
+      this.liquidMaterials = new Map();
+      this.trailSystems = new Map();
+      this.effectMeshes = new Map();
+
+      // Post-processing effects
+      this.bloomPass = null;
+      this.chromaticAberrationPass = null;
+      this.filmGrainPass = null;
+
+      // Texture atlases for effects
+      this.particleTextures = new Map();
+      this.noiseTextures = new Map();
+
+      // Performance settings
+      this.qualityLevel = "high"; // high, medium, low
+      this.effectsEnabled = true;
+
+      // Time uniform for animations
+      this.time = 0;
+
+      // NOTE: Do not auto-call initialize() here. The RenderEngine explicitly
+      // awaits visualEffects.initialize() to ensure proper sequencing.
+      // Auto-invoking the async initialize inside the constructor caused a
+      // duplicate initialization race (textures & materials built twice).
+      // Call initialize() explicitly after construction.
     }
     
     async initialize() {

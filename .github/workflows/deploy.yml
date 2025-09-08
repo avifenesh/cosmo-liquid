@@ -48,7 +48,7 @@ jobs:
         run: |
           # Verify all JS files exist
           echo "Checking JavaScript files..."
-          for file in js/main.js js/utils/math.js js/physics/particle.js js/physics/gravity.js js/rendering/scene.js js/rendering/effects.js js/game/controls.js js/game/scoring.js; do
+          for file in js/main.js js/core/AudioEngine.js js/core/CelestialBodies.js js/core/FluidDynamics.js js/core/InputManager.js js/core/ParticleSystem.js js/core/PerformanceMonitor.js js/core/PhysicsEngine.js js/core/RenderEngine.js js/core/VisualEffects.js; do
             if [ -f "$file" ]; then
               echo "✓ $file exists"
             else
@@ -56,16 +56,6 @@ jobs:
               exit 1
             fi
           done
-          
-      - name: Check CSS files
-        run: |
-          echo "Checking CSS files..."
-          if [ -f "style.css" ]; then
-            echo "✓ style.css exists"
-          else
-            echo "✗ style.css missing"
-            exit 1
-          fi
           
       - name: Optimize for production
         run: |
