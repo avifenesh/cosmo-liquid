@@ -1,6 +1,7 @@
 /**
  * RenderEngine - Three.js rendering system
  * Handles scene setup, camera controls, and particle rendering with advanced visual effects
+ * @class
  */
 
 import * as THREE from 'three';
@@ -10,18 +11,41 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 
+/**
+ * @typedef {Object} ScreenPosition
+ * @property {number} x - The x coordinate in screen space
+ * @property {number} y - The y coordinate in screen space
+ */
+
+/**
+ * @typedef {Object} ParticleSystem
+ * @property {Set} activeParticles - Set of active particles in the system
+ */
+
 export class RenderEngine {
+    /**
+     * Creates a new RenderEngine instance
+     * @constructor
+     * @param {HTMLElement} container - The DOM container to attach the canvas to
+     */
     constructor(container) {
+        /** @type {HTMLElement} The DOM container for the canvas */
         this.container = container;
         
         // Three.js core objects
+        /** @type {THREE.Scene|null} The main Three.js scene */
         this.scene = null;
+        /** @type {THREE.PerspectiveCamera|null} The camera for rendering */
         this.camera = null;
+        /** @type {THREE.WebGLRenderer|null} The WebGL renderer */
         this.renderer = null;
+        /** @type {OrbitControls|null} Camera controls for user interaction */
         this.controls = null;
 
         // Metaballs
+        /** @type {Worker} Web worker for metaball calculations */
         this.metaballsWorker = new Worker('./js/workers/metaballs.worker.js');
+        /** @type {THREE.Mesh|null} The mesh representing the liquid surface */
         this.liquidMesh = null;
         this.metaballsWorker.onmessage = (e) => {
             const { vertices, normals } = e.data;
@@ -30,24 +54,38 @@ export class RenderEngine {
         };
         
         // Visual effects system
+        /** @type {VisualEffects|null} The visual effects system */
         this.visualEffects = null;
         
         // Rendering components
-        this.particleMaterials = new Map(); // Different materials per liquid type
+        /** @type {Map<string, THREE.Material>} Different materials per liquid type */
+        this.particleMaterials = new Map();
+        /** @type {THREE.ShaderMaterial|null} Material for gravity wells */
         this.gravityWellMaterial = null;
+        /** @type {string} Current selected liquid type */
         this.currentLiquidType = 'plasma';
         
         // Multiple particle meshes for different liquid types
+        /** @type {Map<string, THREE.Mesh>} Meshes for different particle types */
         this.particleMeshes = new Map();
         
         // Post-processing
+        /** @type {EffectComposer|null} Post-processing composer */
         this.composer = null;
         
         // State
+        /** @type {HTMLCanvasElement|null} The rendering canvas */
         this.canvas = null;
+        /** @type {boolean} Whether the render engine is initialized */
         this.isInitialized = false;
     }
     
+    /**
+     * Initializes the render engine with all necessary components
+     * @async
+     * @returns {Promise<void>}
+     * @throws {Error} When initialization fails
+     */
     async initialize() {
         try {
             this.setupScene();
@@ -71,6 +109,10 @@ export class RenderEngine {
         }
     }
     
+    /**
+     * Sets up the Three.js scene with background and fog
+     * @private
+     */
     setupScene() {
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x000011);
@@ -79,6 +121,10 @@ export class RenderEngine {
         this.scene.fog = new THREE.Fog(0x000011, 500, 2000);
     }
     
+    /**
+     * Sets up the perspective camera with appropriate settings
+     * @private
+     */
     setupCamera() {
         const aspect = window.innerWidth / window.innerHeight;
         this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 5000);
@@ -88,6 +134,10 @@ export class RenderEngine {
         this.camera.lookAt(0, 0, 0);
     }
     
+    /**
+     * Sets up the WebGL renderer with optimal settings
+     * @private
+     */
     setupRenderer() {
         this.renderer = new THREE.WebGLRenderer({
             antialias: true,
@@ -109,6 +159,10 @@ export class RenderEngine {
         this.container.appendChild(this.canvas);
     }
     
+    /**
+     * Sets up orbit controls for camera interaction
+     * @private
+     */
     setupControls() {
         this.controls = new OrbitControls(this.camera, this.canvas);
         
@@ -125,6 +179,10 @@ export class RenderEngine {
         this.controls.rotateSpeed = 0.4;
     }
     
+    /**
+     * Sets up materials for different liquid types and gravity wells
+     * @private
+     */
     setupMaterials() {
         // Set up materials for each liquid type using visual effects system
         const liquidTypes = ['plasma', 'crystal', 'temporal', 'antimatter', 'quantum', 'darkmatter', 'exotic', 'photonic'];
@@ -187,10 +245,12 @@ export class RenderEngine {
         });
     }
     
+    /**
+     * Sets up the particle system with liquid mesh for metaball rendering
+     * @param {ParticleSystem} particleSystem - The particle system to set up
+     * @returns {THREE.Mesh} The created liquid mesh
+     */
     setupParticleSystem(particleSystem) {
-        this.liquidMesh = this.metaballs.generateMesh();
-        this.scene.add(this.liquidMesh);
-
         const liquidMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 time: { value: 0.0 },
@@ -213,13 +273,17 @@ export class RenderEngine {
             `,
         });
 
-        this.liquidMesh.material = liquidMaterial;
+        const geometry = new THREE.BufferGeometry();
+        this.liquidMesh = new THREE.Mesh(geometry, liquidMaterial);
+        this.scene.add(this.liquidMesh);
 
         return this.liquidMesh;
     }
     
-    
-    
+    /**
+     * Sets up scene lighting with ambient and directional lights
+     * @private
+     */
     setupLighting() {
         // Ambient light for basic visibility
         const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
@@ -231,6 +295,10 @@ export class RenderEngine {
         this.scene.add(directionalLight);
     }
     
+    /**
+     * Sets up post-processing effects including bloom
+     * @private
+     */
     setupPostProcessing() {
       // Basic bloom post-processing for liquid glow enhancement
       this.composer = new EffectComposer(this.renderer);
@@ -246,23 +314,45 @@ export class RenderEngine {
       this.bloomPass = bloomPass;
     }
     
+    /**
+     * Converts 2D screen coordinates to 3D world coordinates.
+     * Projects the mouse click onto a plane at z=0.
+     * @param {{x: number, y: number}} screenPosition - The 2D screen coordinates.
+     * @returns {THREE.Vector3 | undefined} The 3D world coordinates, or undefined if calculation fails.
+     */
     screenToWorld(screenPosition) {
-        // Convert screen coordinates to world coordinates
-        const mouse = new THREE.Vector2();
-        mouse.x = (screenPosition.x / window.innerWidth) * 2 - 1;
-        mouse.y = -(screenPosition.y / window.innerHeight) * 2 + 1;
-        
-        const raycaster = new THREE.Raycaster();
-        raycaster.setFromCamera(mouse, this.camera);
-        
-        // Project onto a plane in front of the camera
-        const distance = 200; // Distance from camera
-        const direction = raycaster.ray.direction.normalize();
-        const worldPosition = this.camera.position.clone().add(direction.multiplyScalar(distance));
-        
-        return worldPosition;
+        if (!screenPosition || !this.camera) {
+            return;
+        }
+
+        var vec = new THREE.Vector3();
+        var pos = new THREE.Vector3();
+
+        vec.set(
+            (screenPosition.x / window.innerWidth) * 2 - 1,
+            - (screenPosition.y / window.innerHeight) * 2 + 1,
+            0.5 );
+
+        vec.unproject( this.camera );
+
+        vec.sub( this.camera.position ).normalize();
+
+        // Guard against division by zero when clicking along the horizon
+        if (Math.abs(vec.z) < 0.0001) {
+            return;
+        }
+
+        var distance = - this.camera.position.z / vec.z;
+
+        pos.copy( this.camera.position ).add( vec.multiplyScalar( distance ) );
+        return pos;
     }
     
+    /**
+     * Adds a visual representation of a gravity well to the scene
+     * @param {THREE.Vector3} position - The position where the gravity well should be placed
+     * @returns {THREE.Mesh} The created gravity well mesh
+     */
     addGravityWellVisual(position) {
         const geometry = new THREE.SphereGeometry(20, 16, 16);
         const mesh = new THREE.Mesh(geometry, this.gravityWellMaterial.clone());
@@ -290,11 +380,21 @@ export class RenderEngine {
         return mesh;
     }
     
+    /**
+     * Elastic easing function for smooth animations
+     * @param {number} t - Time parameter between 0 and 1
+     * @returns {number} Eased value
+     * @private
+     */
     easeOutElastic(t) {
         const c4 = (2 * Math.PI) / 3;
         return t === 0 ? 0 : t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
     }
     
+    /**
+     * Renders the scene with all visual effects and updates
+     * @param {ParticleSystem} particleSystem - The particle system to render
+     */
     render(particleSystem) {
         if (!this.isInitialized) return;
 
@@ -330,9 +430,14 @@ export class RenderEngine {
         }
     }
     
+    /**
+     * Handles window resize events by updating camera and renderer
+     */
     handleResize() {
         const width = window.innerWidth;
         const height = window.innerHeight;
+
+        if (height === 0) return;
         
         this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();

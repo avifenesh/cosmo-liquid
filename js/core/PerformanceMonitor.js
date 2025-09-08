@@ -1,34 +1,106 @@
 /**
  * PerformanceMonitor - Tracks FPS, memory usage, and performance metrics
  * Provides automatic quality adjustment and performance optimization
+ * @class
+ */
+
+/**
+ * @typedef {Object} QualitySettings
+ * @property {number} maxParticles - Maximum number of particles allowed
+ * @property {number} particleSize - Size multiplier for particles
+ * @property {number} trailLength - Length of particle trails
+ * @property {boolean} bloom - Whether bloom effect is enabled
+ * @property {boolean} shadows - Whether shadows are enabled
+ * @property {boolean} antialiasing - Whether antialiasing is enabled
+ * @property {number} pixelRatio - Pixel ratio for rendering
+ */
+
+/**
+ * @typedef {Object} PerformanceStats
+ * @property {number} fps - Current frames per second
+ * @property {number} frameTime - Time taken for the last frame in milliseconds
+ * @property {number} memoryUsage - Current memory usage in MB
+ * @property {number} gpuMemoryUsage - Estimated GPU memory usage in MB
+ * @property {string} qualityLevel - Current quality level
+ * @property {PerformanceWarnings} warnings - Current performance warnings
+ */
+
+/**
+ * @typedef {Object} PerformanceWarnings
+ * @property {boolean} lowFPS - Whether FPS is below minimum threshold
+ * @property {boolean} highMemory - Whether memory usage is high
+ * @property {boolean} gpuLimit - Whether GPU memory limit is being approached
+ */
+
+/**
+ * @typedef {Object} SystemInfo
+ * @property {string} userAgent - Browser user agent string
+ * @property {string} platform - Operating system platform
+ * @property {string|number} deviceMemory - Device memory in GB or 'unknown'
+ * @property {string|number} hardwareConcurrency - Number of CPU cores or 'unknown'
+ * @property {Object} screen - Screen information
+ * @property {number} screen.width - Screen width in pixels
+ * @property {number} screen.height - Screen height in pixels
+ * @property {number} screen.pixelRatio - Device pixel ratio
+ * @property {Object} [webgl] - WebGL information (if available)
+ */
+
+/**
+ * @typedef {Object} BenchmarkResult
+ * @property {string} name - Name of the benchmark
+ * @property {number} iterations - Number of iterations run
+ * @property {number} avgTime - Average time per iteration in milliseconds
+ * @property {number} minTime - Minimum time recorded in milliseconds
+ * @property {number} maxTime - Maximum time recorded in milliseconds
+ * @property {number} fps - Calculated FPS based on average time
  */
 
 export class PerformanceMonitor {
+    /**
+     * Creates a new PerformanceMonitor instance
+     * @constructor
+     */
     constructor() {
         // Frame timing
+        /** @type {number[]} Array of recent frame timestamps */
         this.frameTimestamps = [];
-        this.maxFrameHistory = 60; // Track last 60 frames
+        /** @type {number} Maximum number of frames to track in history */
+        this.maxFrameHistory = 60;
+        /** @type {number} Timestamp of the last frame */
         this.lastFrameTime = performance.now();
         
         // Performance metrics
+        /** @type {number} Current frames per second */
         this.fps = 60;
-        this.frameTime = 16.67; // milliseconds
+        /** @type {number} Time taken for the last frame in milliseconds */
+        this.frameTime = 16.67;
+        /** @type {number} Current memory usage in MB */
         this.memoryUsage = 0;
+        /** @type {number} Estimated GPU memory usage in MB */
         this.gpuMemoryUsage = 0;
         
         // Quality management
+        /** @type {string} Current quality level */
         this.qualityLevel = 'high';
+        /** @type {string[]} Available quality levels */
         this.qualityLevels = ['low', 'medium', 'high', 'ultra'];
-        this.qualityIndex = 2; // Start at 'high'
+        /** @type {number} Current index in quality levels array */
+        this.qualityIndex = 2;
         
         // Auto-adjustment parameters
+        /** @type {number} Target FPS for quality adjustment */
         this.targetFPS = 60;
+        /** @type {number} Minimum acceptable FPS */
         this.minFPS = 30;
+        /** @type {number[]} History of FPS measurements */
         this.fpsHistory = [];
-        this.performanceCheckInterval = 1000; // 1 second
+        /** @type {number} Interval between performance checks in milliseconds */
+        this.performanceCheckInterval = 1000;
+        /** @type {number} Timestamp of last performance check */
         this.lastPerformanceCheck = 0;
         
         // Quality settings for each level
+        /** @type {Object<string, QualitySettings>} Quality settings by level */
         this.qualitySettings = {
             low: {
                 maxParticles: 1000,
@@ -69,6 +141,7 @@ export class PerformanceMonitor {
         };
         
         // Performance warnings
+        /** @type {PerformanceWarnings} Current performance warnings */
         this.warnings = {
             lowFPS: false,
             highMemory: false,
@@ -76,6 +149,7 @@ export class PerformanceMonitor {
         };
         
         // Callbacks for quality changes
+        /** @type {Function[]} Array of callback functions for quality changes */
         this.qualityChangeCallbacks = [];
         
         this.initialize();

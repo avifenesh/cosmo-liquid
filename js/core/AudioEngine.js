@@ -1,11 +1,49 @@
 /**
  * AudioEngine - Procedural audio synthesis using Web Audio API
  * Generates all sounds dynamically for particle interactions and ambient soundscapes
+ * @class
  */
 
 import * as THREE from 'three';
 
+/**
+ * @typedef {Object} LiquidSoundConfig
+ * @property {number} baseFrequency - Base frequency in Hz
+ * @property {number[]} harmonics - Array of harmonic multipliers
+ * @property {string} waveform - Oscillator waveform type
+ * @property {number} attackTime - Attack time in seconds
+ * @property {number} decayTime - Decay time in seconds
+ * @property {number} sustainLevel - Sustain level (0-1)
+ * @property {number} releaseTime - Release time in seconds
+ * @property {number} filterFreq - Filter frequency in Hz
+ * @property {number} filterQ - Filter Q factor
+ * @property {boolean} [modulation] - Whether to apply modulation
+ * @property {boolean} [distortion] - Whether to apply distortion
+ * @property {boolean} [uncertainty] - Whether to apply quantum uncertainty
+ * @property {boolean} [lowpass] - Whether to use lowpass filter
+ * @property {boolean} [phaser] - Whether to apply phaser effect
+ * @property {boolean} [bright] - Whether to use bright timbre
+ */
+
+/**
+ * @typedef {Object} AmbientSource
+ * @property {OscillatorNode} oscillator - The oscillator node
+ * @property {OscillatorNode} lfo - The LFO oscillator node
+ * @property {GainNode} gain - The gain node
+ */
+
+/**
+ * @typedef {Object} SpatialSoundResult
+ * @property {OscillatorNode} oscillator - The oscillator node
+ * @property {PannerNode} panner - The panner node for 3D positioning
+ * @property {GainNode} gain - The gain node
+ */
+
 export class AudioEngine {
+    /**
+     * Creates a new AudioEngine instance
+     * @constructor
+     */
     constructor() {
         // Audio context
         this.audioContext = null;
@@ -133,6 +171,11 @@ export class AudioEngine {
         this.isInitialized = false;
     }
     
+    /**
+     * Initializes the audio engine and sets up the Web Audio API context
+     * @async
+     * @returns {Promise<void>}
+     */
     async initialize() {
         try {
             // Create audio context
@@ -167,6 +210,10 @@ export class AudioEngine {
         }
     }
     
+    /**
+     * Sets up the audio processing chain including compressor and reverb
+     * @private
+     */
     setupAudioProcessing() {
         // Compressor for dynamic range control
         this.compressor = this.audioContext.createDynamicsCompressor();
@@ -184,6 +231,11 @@ export class AudioEngine {
         this.reverb.connect(this.masterGain);
     }
     
+    /**
+     * Creates a reverb node with procedurally generated impulse response
+     * @private
+     * @returns {ConvolverNode} The configured reverb convolver node
+     */
     createReverbNode() {
         const convolver = this.audioContext.createConvolver();
         
@@ -203,6 +255,10 @@ export class AudioEngine {
         return convolver;
     }
     
+    /**
+     * Sets up the ambient soundscape for cosmic atmosphere
+     * @private
+     */
     setupAmbientSoundscape() {
         if (!this.isInitialized) return;
         
@@ -215,6 +271,10 @@ export class AudioEngine {
         this.createCosmicAmbience();
     }
     
+    /**
+     * Creates procedural cosmic ambience with low-frequency drones and modulation
+     * @private
+     */
     createCosmicAmbience() {
         const frequencies = [55, 110, 165, 220]; // Low frequency drones
         
@@ -256,6 +316,10 @@ export class AudioEngine {
         });
     }
     
+    /**
+     * Sets up spatial audio with default listener orientation
+     * @private
+     */
     setupSpatialAudio() {
         if (this.audioContext.listener) {
             // Set default listener orientation
@@ -264,7 +328,11 @@ export class AudioEngine {
         }
     }
     
-    // Public audio methods
+    /**
+     * Plays a launch sound based on liquid type and velocity
+     * @param {string} liquidType - The type of liquid being launched
+     * @param {number} velocity - The launch velocity for sound modulation
+     */
     playLaunchSound(liquidType, velocity) {
         if (!this.enabled || !this.isInitialized) return;
         
@@ -277,6 +345,10 @@ export class AudioEngine {
         this.createLiquidSound(config, velocityFactor, 0.3);
     }
     
+    /**
+     * Plays a selection sound when a liquid type is chosen
+     * @param {string} liquidType - The type of liquid being selected
+     */
     playLiquidSelectSound(liquidType) {
         if (!this.enabled || !this.isInitialized) return;
         
@@ -288,6 +360,9 @@ export class AudioEngine {
         this.createLiquidSound(config, 0.5, 0.2, 0.3);
     }
     
+    /**
+     * Plays a deep resonant sound for gravity well creation
+     */
     playGravityWellSound() {
         if (!this.enabled || !this.isInitialized) return;
         
@@ -331,6 +406,14 @@ export class AudioEngine {
         };
     }
     
+    /**
+     * Creates a complex liquid sound with harmonics and effects based on configuration
+     * @param {LiquidSoundConfig} config - The sound configuration for the liquid type
+     * @param {number} [velocityFactor=1] - Factor to modulate frequency and filter based on velocity
+     * @param {number} [volume=0.5] - Base volume for the sound (0-1)
+     * @param {number|null} [duration=null] - Override duration in seconds, or null to use config values
+     * @private
+     */
     createLiquidSound(config, velocityFactor = 1, volume = 0.5, duration = null) {
         const now = this.audioContext.currentTime;
         const soundDuration = duration || (config.attackTime + config.decayTime + config.releaseTime);
@@ -401,7 +484,10 @@ export class AudioEngine {
         });
     }
     
-    // Spatial audio methods
+    /**
+     * Updates spatial audio listener position and orientation based on camera
+     * @param {THREE.Camera} camera - The Three.js camera object
+     */
     update(camera) {
         if (!this.enabled || !this.isInitialized || !this.audioContext.listener) return;
         
@@ -427,6 +513,13 @@ export class AudioEngine {
         );
     }
     
+    /**
+     * Creates a positioned sound in 3D space
+     * @param {THREE.Vector3} position - The 3D position for the sound
+     * @param {LiquidSoundConfig} config - The sound configuration
+     * @param {number} [volume=0.5] - The volume of the sound (0-1)
+     * @returns {SpatialSoundResult|undefined} The created sound nodes or undefined if audio is disabled
+     */
     createSpatialSound(position, config, volume = 0.5) {
         if (!this.enabled || !this.isInitialized) return;
         
@@ -466,7 +559,10 @@ export class AudioEngine {
         return { oscillator, panner, gain };
     }
     
-    // Audio context management
+    /**
+     * Resumes the audio context if it was suspended due to browser policy
+     * @private
+     */
     resumeContextIfNeeded() {
         if (this.audioContext && this.audioContext.state === 'suspended') {
             this.audioContext.resume().then(() => {
@@ -477,7 +573,10 @@ export class AudioEngine {
         }
     }
     
-    // Volume controls
+    /**
+     * Sets the master volume for all audio output
+     * @param {number} volume - Volume level from 0 to 1
+     */
     setMasterVolume(volume) {
         this.masterVolume = Math.max(0, Math.min(1, volume));
         if (this.masterGain) {
@@ -485,10 +584,18 @@ export class AudioEngine {
         }
     }
     
+    /**
+     * Sets the volume for sound effects
+     * @param {number} volume - Volume level from 0 to 1
+     */
     setSFXVolume(volume) {
         this.sfxVolume = Math.max(0, Math.min(1, volume));
     }
     
+    /**
+     * Sets the volume for ambient sounds
+     * @param {number} volume - Volume level from 0 to 1
+     */
     setAmbientVolume(volume) {
         this.ambientVolume = Math.max(0, Math.min(1, volume));
         if (this.spaceAmbienceGain) {
@@ -496,30 +603,43 @@ export class AudioEngine {
         }
     }
     
-    // Control methods
+    /**
+     * Enables the audio engine
+     */
     enable() {
         this.enabled = true;
         this.setMasterVolume(this.masterVolume);
     }
     
+    /**
+     * Disables the audio engine
+     */
     disable() {
         this.enabled = false;
         this.setMasterVolume(0);
     }
     
+    /**
+     * Mutes all audio output
+     */
     mute() {
         if (this.masterGain) {
             this.masterGain.gain.value = 0;
         }
     }
     
+    /**
+     * Unmutes audio output, restoring previous volume
+     */
     unmute() {
         if (this.masterGain) {
             this.masterGain.gain.value = this.masterVolume;
         }
     }
     
-    // Cleanup
+    /**
+     * Stops all currently playing sounds
+     */
     stopAllSounds() {
         // Stop all active nodes
         for (const node of this.activeNodes) {
@@ -534,6 +654,9 @@ export class AudioEngine {
         this.activeNodes.clear();
     }
     
+    /**
+     * Disposes of the audio engine and cleans up all resources
+     */
     dispose() {
         // Stop all sounds
         this.stopAllSounds();

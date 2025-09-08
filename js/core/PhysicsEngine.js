@@ -1,37 +1,116 @@
 /**
  * PhysicsEngine - Advanced physics simulation system
  * Handles gravity, electromagnetic forces, and quantum effects
+ * @class
  */
 
 import * as THREE from 'three';
 
+/**
+ * @typedef {Object} GravityWell
+ * @property {string} id - Unique identifier for the gravity well
+ * @property {THREE.Vector3} position - Position of the gravity well
+ * @property {number} mass - Mass of the gravity well
+ * @property {string} type - Type of celestial body (star, planet, etc.)
+ * @property {number} radius - Radius of the gravity well
+ * @property {boolean} active - Whether the gravity well is active
+ * @property {number} createdAt - Timestamp when the gravity well was created
+ * @property {boolean} [rotating] - Whether the gravity well is rotating
+ * @property {THREE.Vector3} [angularVelocity] - Angular velocity vector for frame dragging
+ */
+
+/**
+ * @typedef {Object} GravityWellConfig
+ * @property {THREE.Vector3} position - Position of the gravity well
+ * @property {number} [mass] - Mass of the gravity well (default: 1000)
+ * @property {string} [type] - Type of celestial body (default: 'star')
+ * @property {number} [radius] - Radius of the gravity well (default: 20)
+ */
+
+/**
+ * @typedef {Object} LiquidPhysicsProperties
+ * @property {number} [charge] - Electric charge of the liquid
+ * @property {number} [mass] - Mass multiplier
+ * @property {boolean} [electromagnetic] - Whether affected by electromagnetic forces
+ * @property {boolean} [quantum] - Whether quantum effects apply
+ * @property {boolean} [relativistic] - Whether relativistic effects apply
+ * @property {boolean} [crystallization] - Whether crystallization occurs
+ * @property {number} [solidification] - Solidification threshold
+ * @property {boolean} [timeDilation] - Whether time dilation effects apply
+ * @property {number} [relativisticThreshold] - Threshold velocity for relativistic effects
+ * @property {boolean} [antiGravity] - Whether anti-gravity effects apply
+ * @property {boolean} [annihilation] - Whether annihilation can occur
+ * @property {number} [uncertainty] - Quantum uncertainty multiplier
+ * @property {number} [tunneling] - Quantum tunneling probability
+ * @property {number} [gravity] - Gravity multiplier
+ * @property {boolean} [invisible] - Whether the liquid is invisible
+ * @property {boolean} [repulsive] - Whether the liquid has repulsive forces
+ * @property {boolean} [lightSpeed] - Whether the liquid can approach light speed
+ * @property {number} [maxVelocity] - Maximum velocity for the liquid
+ */
+
+/**
+ * @typedef {Object} RelativisticEffects
+ * @property {number} timeDilation - Time dilation factor (gamma)
+ * @property {number} lengthContraction - Length contraction factor (1/gamma)
+ * @property {number} [gamma] - Lorentz factor
+ */
+
+/**
+ * @typedef {Object} Particle
+ * @property {THREE.Vector3} position - Position of the particle
+ * @property {THREE.Vector3} velocity - Velocity of the particle
+ * @property {number} mass - Mass of the particle
+ * @property {number} [charge] - Electric charge of the particle
+ * @property {number} [radius] - Radius of the particle for collision detection
+ */
+
 export class PhysicsEngine {
+    /**
+     * Creates a new PhysicsEngine instance
+     * @constructor
+     */
     constructor() {
         // Physics constants
-        this.G = 6.67430e-11; // Gravitational constant (scaled for game)
-        this.c = 299792458; // Speed of light (scaled)
-        this.k = 8.9875517923e9; // Coulomb's constant (scaled)
+        /** @type {number} Gravitational constant (scaled for game) */
+        this.G = 6.67430e-11;
+        /** @type {number} Speed of light (scaled) */
+        this.c = 299792458;
+        /** @type {number} Coulomb's constant (scaled) */
+        this.k = 8.9875517923e9;
         
         // Simulation parameters
+        /** @type {number} Time scale multiplier for simulation speed */
         this.timeScale = 1.0;
-    // Legacy scalar multiplier for gravity (will be combined with normalized scaling)
-    this.gravityStrength = 1000.0; // (legacy) overall strength; can tune at runtime
-    this.gravityScale = 1.0; // New secondary global scaling for fine tuning
+        /** @type {number} Legacy scalar multiplier for gravity (will be combined with normalized scaling) */
+        this.gravityStrength = 1000.0;
+        /** @type {number} New secondary global scaling for fine tuning */
+        this.gravityScale = 1.0;
+        /** @type {number} Damping factor for velocity to provide stability */
         this.dampingFactor = 0.995;
         
         // Gravity wells
+        /** @type {GravityWell[]} Array of gravity wells in the simulation */
         this.gravityWells = [];
         
         // Spatial optimization (simplified octree)
+        /** @type {Map} Spatial grid for optimization */
         this.spatialGrid = new Map();
+        /** @type {number} Size of each grid cell */
         this.gridSize = 100;
         
         // Force accumulators
+        /** @type {Map} Map of accumulated forces for particles */
         this.forces = new Map();
         
+        /** @type {boolean} Whether the physics engine is initialized */
         this.isInitialized = true;
     }
     
+    /**
+     * Updates the physics simulation by a time step.
+     * @param {number} deltaTime - The time elapsed since the last frame.
+     */
     update(deltaTime) {
         if (!this.isInitialized) return;
         
@@ -45,11 +124,21 @@ export class PhysicsEngine {
         this.updateSpatialGrid();
     }
     
+    /**
+     * Updates the spatial grid for particle optimization
+     * @private
+     * @todo Implement spatial grid for particle optimization
+     */
     updateSpatialGrid() {
         // TODO: Implement spatial grid for particle optimization
         // For now, we'll use direct particle access from ParticleSystem
     }
     
+    /**
+     * Adds a new gravity well to the simulation
+     * @param {GravityWellConfig} config - The configuration for the gravity well
+     * @returns {GravityWell} The created gravity well object
+     */
     addGravityWell(config) {
         const well = {
             id: this.generateId(),
@@ -65,11 +154,21 @@ export class PhysicsEngine {
         return well;
     }
     
+    /**
+     * Removes a gravity well from the simulation
+     * @param {string} id - The ID of the gravity well to remove
+     */
     removeGravityWell(id) {
         this.gravityWells = this.gravityWells.filter(well => well.id !== id);
     }
     
-    // Force calculation methods
+    /**
+     * Calculates gravitational force between a particle and a gravity well
+     * Uses Newton's law of universal gravitation with distance falloff and safety limits
+     * @param {Particle} particle - The particle to calculate force for
+     * @param {GravityWell} gravityWell - The gravity well exerting the force
+     * @returns {THREE.Vector3} The gravitational force vector
+     */
     calculateGravitationalForce(particle, gravityWell) {
         const displacement = new THREE.Vector3().subVectors(
           gravityWell.position,
@@ -107,6 +206,14 @@ export class PhysicsEngine {
         return force;
     }
     
+    /**
+     * Calculates Lorentz force on a charged particle in electromagnetic fields
+     * F = q(E + v × B)
+     * @param {Particle} particle - The charged particle
+     * @param {THREE.Vector3} electricField - The electric field vector
+     * @param {THREE.Vector3} magneticField - The magnetic field vector
+     * @returns {THREE.Vector3} The Lorentz force vector
+     */
     calculateLorentzForce(particle, electricField, magneticField) {
         // F = q(E + v × B)
         const electricForce = electricField.clone().multiplyScalar(particle.charge || 0);
@@ -118,6 +225,12 @@ export class PhysicsEngine {
         return electricForce.add(magneticForce);
     }
     
+    /**
+     * Calculates quantum uncertainty displacement for a particle
+     * Based on Heisenberg uncertainty principle: Δx * Δp ≥ ℏ/2
+     * @param {Particle} particle - The particle to calculate uncertainty for
+     * @returns {THREE.Vector3} Random displacement vector based on quantum uncertainty
+     */
     calculateQuantumUncertainty(particle) {
         // Heisenberg uncertainty principle effects
         // Δx * Δp ≥ ℏ/2
@@ -134,6 +247,12 @@ export class PhysicsEngine {
         return randomDisplacement;
     }
     
+    /**
+     * Calculates the quantum uncertainty radius for a particle
+     * Uses simplified quantum mechanics: uncertainty ∝ ℏ/(2p)
+     * @param {Particle} particle - The particle to calculate uncertainty radius for
+     * @returns {number} The uncertainty radius scaled for visibility
+     */
     getQuantumUncertaintyRadius(particle) {
         // Simplified quantum uncertainty calculation
         const hbar = 1.054571817e-34; // Reduced Planck constant (scaled)
@@ -145,6 +264,12 @@ export class PhysicsEngine {
         return hbar / (2 * momentum) * 1000; // Scaled for visibility
     }
     
+    /**
+     * Calculates relativistic effects for high-velocity particles
+     * Computes time dilation and length contraction based on Lorentz transformations
+     * @param {Particle} particle - The particle to calculate relativistic effects for
+     * @returns {RelativisticEffects} Object containing relativistic effect factors
+     */
     calculateRelativisticEffects(particle) {
         const velocity = particle.velocity.length();
         const beta = velocity / this.c;
@@ -161,7 +286,13 @@ export class PhysicsEngine {
         };
     }
     
-    // Integration methods
+    /**
+     * Performs Verlet integration to update particle position and velocity
+     * Uses the velocity-Verlet algorithm for improved stability
+     * @param {Particle} particle - The particle to integrate
+     * @param {THREE.Vector3} force - The total force acting on the particle
+     * @param {number} deltaTime - The time step for integration
+     */
     verletIntegration(particle, force, deltaTime) {
         const acceleration = force.clone().divideScalar(particle.mass);
         
@@ -180,6 +311,13 @@ export class PhysicsEngine {
         particle.velocity.multiplyScalar(this.dampingFactor);
     }
     
+    /**
+     * Performs fourth-order Runge-Kutta integration for high accuracy
+     * More computationally expensive but provides better accuracy for complex systems
+     * @param {Particle} particle - The particle to integrate
+     * @param {Function} forceFunction - Function that returns force given position and velocity
+     * @param {number} deltaTime - The time step for integration
+     */
     rungeKutta4Integration(particle, forceFunction, deltaTime) {
         // Fourth-order Runge-Kutta integration (high accuracy)
         const dt = deltaTime;
@@ -225,7 +363,13 @@ export class PhysicsEngine {
         particle.velocity.add(deltaVel);
     }
     
-    // Collision detection (basic sphere-sphere)
+    /**
+     * Checks for collision between two spherical particles
+     * Uses basic sphere-sphere collision detection
+     * @param {Particle} particle1 - The first particle
+     * @param {Particle} particle2 - The second particle
+     * @returns {boolean} True if particles are colliding
+     */
     checkCollision(particle1, particle2) {
         const distance = particle1.position.distanceTo(particle2.position);
         const minDistance = particle1.radius + particle2.radius;
@@ -233,6 +377,12 @@ export class PhysicsEngine {
         return distance < minDistance;
     }
     
+    /**
+     * Resolves elastic collision between two particles
+     * Separates overlapping particles and applies conservation of momentum
+     * @param {Particle} particle1 - The first particle
+     * @param {Particle} particle2 - The second particle
+     */
     resolveCollision(particle1, particle2) {
         // Elastic collision resolution
         const displacement = new THREE.Vector3()
@@ -265,28 +415,52 @@ export class PhysicsEngine {
         }
     }
     
-    // Utility methods
+    /**
+     * Generates a unique identifier string
+     * @returns {string} A random 9-character identifier
+     * @private
+     */
     generateId() {
         return Math.random().toString(36).substr(2, 9);
     }
     
+    /**
+     * Gets all active gravity wells in the simulation
+     * @returns {GravityWell[]} Array of active gravity wells
+     */
     getGravityWells() {
         return this.gravityWells.filter(well => well.active);
     }
     
+    /**
+     * Sets the time scale for the physics simulation
+     * @param {number} scale - Time scale multiplier (clamped between 0.1 and 10.0)
+     */
     setTimeScale(scale) {
         this.timeScale = Math.max(0.1, Math.min(scale, 10.0));
     }
     
+    /**
+     * Sets the overall gravity strength for the simulation
+     * @param {number} strength - Gravity strength multiplier (minimum 0)
+     */
     setGravityStrength(strength) {
         this.gravityStrength = Math.max(0, strength);
     }
 
+    /**
+     * Sets the secondary gravity scaling factor
+     * @param {number} scale - Gravity scale multiplier (minimum 0)
+     */
     setGravityScale(scale) {
         this.gravityScale = Math.max(0, scale);
     }
 
-    // Debug utility to sample gravitational acceleration for a particle
+    /**
+     * Debug utility to sample gravitational acceleration for a particle
+     * @param {Particle} particle - The particle to sample acceleration for
+     * @returns {Array<{wellId: string, accel: number, distance: number}>|null} Array of acceleration samples or null if no wells
+     */
     debugGravitySample(particle) {
         if (!this.gravityWells.length) return null;
         const samples = [];
@@ -298,7 +472,11 @@ export class PhysicsEngine {
         return samples;
     }
     
-    // Liquid-specific physics modifiers
+    /**
+     * Gets physics properties for different liquid types
+     * @param {string} liquidType - The type of liquid (plasma, crystal, temporal, etc.)
+     * @returns {LiquidPhysicsProperties} Object containing physics properties for the liquid type
+     */
     getLiquidPhysicsProperties(liquidType) {
         const properties = {
             plasma: {
@@ -356,7 +534,13 @@ export class PhysicsEngine {
         return properties[liquidType] || properties.plasma;
     }
     
-    // Advanced physics calculations
+    /**
+     * Calculates tidal forces on a particle near a massive gravity well
+     * Tidal forces become significant when particles are very close to massive objects
+     * @param {Particle} particle - The particle experiencing tidal forces
+     * @param {GravityWell} gravityWell - The massive object creating tidal forces
+     * @returns {THREE.Vector3} The tidal force vector
+     */
     calculateTidalForces(particle, gravityWell) {
         // Tidal forces near massive objects
         const displacement = new THREE.Vector3()
@@ -373,6 +557,13 @@ export class PhysicsEngine {
         return displacement.normalize().multiplyScalar(tidalStrength);
     }
     
+    /**
+     * Calculates frame-dragging effects (Lense-Thirring effect) for rotating massive objects
+     * This is a simplified implementation of the general relativistic effect
+     * @param {Particle} particle - The particle experiencing frame dragging
+     * @param {GravityWell} gravityWell - The rotating massive object
+     * @returns {THREE.Vector3} The frame-dragging force vector
+     */
     calculateFrameDragging(particle, gravityWell) {
         // Simplified frame-dragging effect (General Relativity)
         if (!gravityWell.rotating) return new THREE.Vector3(0, 0, 0);
@@ -393,6 +584,9 @@ export class PhysicsEngine {
         return frameDragForce;
     }
     
+    /**
+     * Disposes of the physics engine and cleans up all resources
+     */
     dispose() {
         this.gravityWells = [];
         this.forces.clear();

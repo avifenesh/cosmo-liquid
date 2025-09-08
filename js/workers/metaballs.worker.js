@@ -1,7 +1,37 @@
+/**
+ * Metaballs Web Worker - Generates liquid surfaces using Marching Cubes algorithm
+ * Processes particle positions to create smooth metaball surfaces in a separate thread
+ * for better performance and to avoid blocking the main thread.
+ * 
+ * @fileoverview This worker implements the Marching Cubes algorithm to generate
+ * smooth liquid surfaces from particle data. It uses lookup tables for efficient
+ * mesh generation and runs independently from the main rendering thread.
+ */
+
 importScripts('https://unpkg.com/three@0.158.0/build/three.min.js');
 
-// MarchingCubesTables and Metaballs code will be here
+/**
+ * @typedef {Object} ParticleData
+ * @property {Object} position - Plain object with x, y, z properties
+ * @property {number} position.x - X coordinate of the particle
+ * @property {number} position.y - Y coordinate of the particle
+ * @property {number} position.z - Z coordinate of the particle
+ * @property {number} size - The size/influence radius of the particle
+ */
 
+/**
+ * @typedef {Object} MeshData
+ * @property {Float32Array} vertices - Array of vertex positions (x,y,z triplets)
+ * @property {Float32Array} normals - Array of vertex normals (x,y,z triplets)
+ */
+
+/**
+ * Handles messages from the main thread to generate the metaball mesh
+ * Receives particle data, updates the metaball field, and generates mesh using Marching Cubes
+ * @param {MessageEvent} e - The message event from main thread
+ * @param {Object} e.data - The data sent from the main thread
+ * @param {ParticleData[]} e.data.particles - An array of particle data objects
+ */
 self.onmessage = function(e) {
     const { particles } = e.data;
 
@@ -329,6 +359,11 @@ const triTable = [
 
 // --- Metaballs ---
 class Metaballs {
+    /**
+     * Creates an instance of the Metaballs generator.
+     * @param {number} [resolution=32] - The resolution of the grid.
+     * @param {number} [size=200] - The size of the metaball field.
+     */
     constructor(resolution = 32, size = 200) {
         this.resolution = resolution;
         this.size = size;
@@ -336,6 +371,10 @@ class Metaballs {
         this.threshold = 0.5;
     }
 
+    /**
+     * Updates the metaball grid based on particle positions.
+     * @param {ParticleData[]} particles - An array of particles to influence the grid.
+     */
     update(particles) {
         this.grid.fill(0);
 
@@ -367,6 +406,10 @@ class Metaballs {
         }
     }
 
+    /**
+     * Generates the mesh from the current grid state using the Marching Cubes algorithm.
+     * @returns {{vertices: Float32Array, normals: Float32Array}} The generated vertices and normals.
+     */
     generateMesh() {
         const vertices = [];
         const normals = [];

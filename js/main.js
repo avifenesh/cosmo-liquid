@@ -124,9 +124,6 @@ class CosmoLiquid {
                 // Update current liquid type
                 this.currentLiquidType = e.target.dataset.liquid;
                 
-                // Update render engine to show the new liquid type
-                this.renderEngine.setActiveLiquidType(this.currentLiquidType);
-                
                 // Play selection sound
                 this.audioEngine.playLiquidSelectSound(this.currentLiquidType);
                 
@@ -197,8 +194,17 @@ class CosmoLiquid {
         document.addEventListener('contextmenu', (e) => e.preventDefault());
     }
     
+    /**
+     * Starts a new particle stream at the given screen position.
+     * @param {{x: number, y: number}} position - The 2D screen position to start the stream.
+     */
     startParticleStream(position) {
         const worldPosition = this.renderEngine.screenToWorld(position);
+        if (!worldPosition) {
+            console.error("Could not determine world position from screen position:", position);
+            return;
+        }
+
         const velocity = this.calculateInitialVelocity(worldPosition);
         
         this.particleSystem.startStream({
@@ -212,8 +218,15 @@ class CosmoLiquid {
         this.audioEngine.playLaunchSound(this.currentLiquidType, velocity.length());
     }
     
+    /**
+     * Updates the position of the active particle stream.
+     * @param {{x: number, y: number}} position - The new 2D screen position for the stream.
+     */
     updateParticleStream(position) {
         const worldPosition = this.renderEngine.screenToWorld(position);
+        if (!worldPosition) {
+            return; // Do not update stream if position is invalid
+        }
         const velocity = this.calculateInitialVelocity(worldPosition);
         
         this.particleSystem.updateStream({
@@ -226,6 +239,11 @@ class CosmoLiquid {
         this.particleSystem.stopStream();
     }
     
+    /**
+     * Calculates the initial velocity for particles based on camera direction.
+     * @param {THREE.Vector3} worldPosition - The 3D world position to aim towards.
+     * @returns {THREE.Vector3} The calculated initial velocity vector.
+     */
     calculateInitialVelocity(worldPosition) {
         // Calculate velocity based on camera direction and distance
         const camera = this.renderEngine.camera;
@@ -281,14 +299,11 @@ class CosmoLiquid {
         // Update celestial bodies
         this.celestialBodies.update(cappedDeltaTime);
         
-        // Update particle geometry in render engine
-        this.renderEngine.updateParticleGeometry(this.particleSystem);
-        
         // Update audio (spatial positioning, etc.)
         this.audioEngine.update(this.renderEngine.camera);
         
         // Render frame
-        this.renderEngine.render(this.particleSystem.particles);
+        this.renderEngine.render(this.particleSystem);
         
         // Update UI stats
         this.updatePerformanceStats();

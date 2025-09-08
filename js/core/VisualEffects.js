@@ -1,33 +1,57 @@
 /**
  * VisualEffects - Advanced visual effects system for liquid types
  * Creates unique, spectacular visuals for each liquid with custom shaders
+ * @class
  */
 
 import * as THREE from 'three';
 
+/**
+ * @typedef {Object} QualitySettings
+ * @property {number} particleSize - Size of particles for this quality level
+ * @property {boolean} effectsEnabled - Whether effects are enabled for this quality level
+ */
+
 export class VisualEffects {
+    /**
+     * Creates a new VisualEffects instance
+     * @constructor
+     * @param {THREE.WebGLRenderer} renderer - The Three.js WebGL renderer
+     */
     constructor(renderer) {
+      /** @type {THREE.WebGLRenderer} The Three.js WebGL renderer */
       this.renderer = renderer;
 
       // Shader materials for each liquid type
+      /** @type {Map<string, THREE.Material>} Map of liquid type to shader material */
       this.liquidMaterials = new Map();
+      /** @type {Map<string, Object>} Map of trail systems for each liquid type */
       this.trailSystems = new Map();
+      /** @type {Map<string, THREE.Mesh>} Map of effect meshes for visual effects */
       this.effectMeshes = new Map();
 
       // Post-processing effects
+      /** @type {Object|null} Bloom post-processing pass */
       this.bloomPass = null;
+      /** @type {Object|null} Chromatic aberration post-processing pass */
       this.chromaticAberrationPass = null;
+      /** @type {Object|null} Film grain post-processing pass */
       this.filmGrainPass = null;
 
       // Texture atlases for effects
+      /** @type {Map<string, THREE.Texture>} Map of particle textures by liquid type */
       this.particleTextures = new Map();
+      /** @type {Map<string, THREE.Texture>} Map of noise textures for effects */
       this.noiseTextures = new Map();
 
       // Performance settings
-      this.qualityLevel = "high"; // high, medium, low
+      /** @type {string} Current quality level: 'high', 'medium', or 'low' */
+      this.qualityLevel = "high";
+      /** @type {boolean} Whether visual effects are enabled */
       this.effectsEnabled = true;
 
       // Time uniform for animations
+      /** @type {number} Current time for shader animations */
       this.time = 0;
 
       // NOTE: Do not auto-call initialize() here. The RenderEngine explicitly
@@ -37,6 +61,11 @@ export class VisualEffects {
       // Call initialize() explicitly after construction.
     }
     
+    /**
+     * Initializes the visual effects system by creating textures and materials
+     * @async
+     * @returns {Promise<void>}
+     */
     async initialize() {
         // Create textures for effects
         await this.createParticleTextures();
@@ -48,6 +77,12 @@ export class VisualEffects {
         console.log('VisualEffects system initialized');
     }
     
+    /**
+     * Creates all particle textures for different liquid types
+     * @async
+     * @returns {Promise<void>}
+     * @private
+     */
     async createParticleTextures() {
         // Plasma texture - electric energy
         this.particleTextures.set('plasma', this.createPlasmaTexture());
@@ -74,6 +109,11 @@ export class VisualEffects {
         this.particleTextures.set('photonic', this.createPhotonicTexture());
     }
     
+    /**
+     * Creates a plasma texture with electric arc patterns
+     * @returns {THREE.CanvasTexture} The created plasma texture
+     * @private
+     */
     createPlasmaTexture() {
         const canvas = document.createElement('canvas');
         canvas.width = 128;
@@ -111,6 +151,11 @@ export class VisualEffects {
         return new THREE.CanvasTexture(canvas);
     }
     
+    /**
+     * Creates a crystal texture with geometric lattice patterns
+     * @returns {THREE.CanvasTexture} The created crystal texture
+     * @private
+     */
     createCrystalTexture() {
         const canvas = document.createElement('canvas');
         canvas.width = 128;
@@ -150,6 +195,11 @@ export class VisualEffects {
         return new THREE.CanvasTexture(canvas);
     }
     
+    /**
+     * Creates a temporal texture with time distortion spiral patterns
+     * @returns {THREE.CanvasTexture} The created temporal texture
+     * @private
+     */
     createTemporalTexture() {
         const canvas = document.createElement('canvas');
         canvas.width = 128;
@@ -189,6 +239,11 @@ export class VisualEffects {
         return new THREE.CanvasTexture(canvas);
     }
     
+    /**
+     * Creates an antimatter texture with void distortion effects
+     * @returns {THREE.CanvasTexture} The created antimatter texture
+     * @private
+     */
     createAntimatterTexture() {
         const canvas = document.createElement('canvas');
         canvas.width = 128;
@@ -221,6 +276,11 @@ export class VisualEffects {
         return new THREE.CanvasTexture(canvas);
     }
     
+    /**
+     * Creates a quantum texture with probability cloud patterns
+     * @returns {THREE.CanvasTexture} The created quantum texture
+     * @private
+     */
     createQuantumTexture() {
         const canvas = document.createElement('canvas');
         canvas.width = 128;
@@ -248,6 +308,11 @@ export class VisualEffects {
         return new THREE.CanvasTexture(canvas);
     }
     
+    /**
+     * Creates a dark matter texture with gravitational lensing effects
+     * @returns {THREE.CanvasTexture} The created dark matter texture
+     * @private
+     */
     createDarkMatterTexture() {
         const canvas = document.createElement('canvas');
         canvas.width = 128;
@@ -279,6 +344,11 @@ export class VisualEffects {
         return new THREE.CanvasTexture(canvas);
     }
     
+    /**
+     * Creates an exotic texture with impossible geometry patterns
+     * @returns {THREE.CanvasTexture} The created exotic texture
+     * @private
+     */
     createExoticTexture() {
         const canvas = document.createElement('canvas');
         canvas.width = 128;
@@ -320,6 +390,11 @@ export class VisualEffects {
         return new THREE.CanvasTexture(canvas);
     }
     
+    /**
+     * Creates a photonic texture with light beam effects
+     * @returns {THREE.CanvasTexture} The created photonic texture
+     * @private
+     */
     createPhotonicTexture() {
         const canvas = document.createElement('canvas');
         canvas.width = 128;
@@ -360,12 +435,23 @@ export class VisualEffects {
         return new THREE.CanvasTexture(canvas);
     }
     
+    /**
+     * Creates noise textures for various visual effects
+     * @async
+     * @returns {Promise<void>}
+     * @private
+     */
     async createNoiseTextures() {
         // Create Perlin noise texture for various effects
         this.noiseTextures.set('perlin', this.createPerlinNoiseTexture());
         this.noiseTextures.set('cloud', this.createCloudNoiseTexture());
     }
     
+    /**
+     * Creates a Perlin noise texture for procedural effects
+     * @returns {THREE.CanvasTexture} The created Perlin noise texture
+     * @private
+     */
     createPerlinNoiseTexture() {
         const canvas = document.createElement('canvas');
         canvas.width = 256;
@@ -388,6 +474,11 @@ export class VisualEffects {
         return new THREE.CanvasTexture(canvas);
     }
     
+    /**
+     * Creates a cloud noise texture with multi-octave patterns
+     * @returns {THREE.CanvasTexture} The created cloud noise texture
+     * @private
+     */
     createCloudNoiseTexture() {
         const canvas = document.createElement('canvas');
         canvas.width = 256;
@@ -426,6 +517,10 @@ export class VisualEffects {
         return new THREE.CanvasTexture(canvas);
     }
     
+    /**
+     * Initializes custom shader materials for all liquid types
+     * @private
+     */
     initializeLiquidMaterials() {
         // Create custom shader materials for each liquid type
         this.liquidMaterials.set('plasma', this.createPlasmaMaterial());
@@ -438,6 +533,11 @@ export class VisualEffects {
         this.liquidMaterials.set('photonic', this.createPhotonicMaterial());
     }
     
+    /**
+     * Creates a plasma material with electric field distortions and pulsing effects
+     * @returns {THREE.ShaderMaterial} The created plasma material
+     * @private
+     */
     createPlasmaMaterial() {
         return new THREE.ShaderMaterial({
             uniforms: {
@@ -498,6 +598,11 @@ export class VisualEffects {
         });
     }
     
+    /**
+     * Creates a crystal material with growth effects and prismatic refraction
+     * @returns {THREE.ShaderMaterial} The created crystal material
+     * @private
+     */
     createCrystalMaterial() {
         return new THREE.ShaderMaterial({
             uniforms: {
@@ -548,7 +653,11 @@ export class VisualEffects {
         });
     }
     
-    // Similar material creation methods for other liquid types...
+    /**
+     * Creates a temporal material with time dilation distortion effects
+     * @returns {THREE.ShaderMaterial} The created temporal material
+     * @private
+     */
     createTemporalMaterial() {
         return new THREE.ShaderMaterial({
             uniforms: {
@@ -602,27 +711,57 @@ export class VisualEffects {
         });
     }
     
-    // Placeholder methods for other materials - would implement similar custom shaders
+    /**
+     * Creates an antimatter material using basic liquid material as fallback
+     * @returns {THREE.Material} The created antimatter material
+     * @private
+     */
     createAntimatterMaterial() {
         return this.createBasicLiquidMaterial('antimatter');
     }
     
+    /**
+     * Creates a quantum material using basic liquid material as fallback
+     * @returns {THREE.Material} The created quantum material
+     * @private
+     */
     createQuantumMaterial() {
         return this.createBasicLiquidMaterial('quantum');
     }
     
+    /**
+     * Creates a dark matter material using basic liquid material as fallback
+     * @returns {THREE.Material} The created dark matter material
+     * @private
+     */
     createDarkMatterMaterial() {
         return this.createBasicLiquidMaterial('darkmatter');
     }
     
+    /**
+     * Creates an exotic material using basic liquid material as fallback
+     * @returns {THREE.Material} The created exotic material
+     * @private
+     */
     createExoticMaterial() {
         return this.createBasicLiquidMaterial('exotic');
     }
     
+    /**
+     * Creates a photonic material using basic liquid material as fallback
+     * @returns {THREE.Material} The created photonic material
+     * @private
+     */
     createPhotonicMaterial() {
         return this.createBasicLiquidMaterial('photonic');
     }
     
+    /**
+     * Creates a basic liquid material with standard properties
+     * @param {string} type - The liquid type for texture selection
+     * @returns {THREE.PointsMaterial} The created basic material
+     * @private
+     */
     createBasicLiquidMaterial(type) {
         return new THREE.PointsMaterial({
             size: 4,
@@ -634,12 +773,19 @@ export class VisualEffects {
         });
     }
     
-    // Get material for specific liquid type
+    /**
+     * Gets the material for a specific liquid type
+     * @param {string} liquidType - The type of liquid to get material for
+     * @returns {THREE.Material} The material for the liquid type, or plasma as fallback
+     */
     getLiquidMaterial(liquidType) {
         return this.liquidMaterials.get(liquidType) || this.liquidMaterials.get('plasma');
     }
     
-    // Update time uniforms for animation
+    /**
+     * Updates time uniforms for animated shader effects
+     * @param {number} deltaTime - The time elapsed since last update
+     */
     update(deltaTime) {
         this.time += deltaTime;
         
@@ -651,7 +797,10 @@ export class VisualEffects {
         }
     }
     
-    // Performance management
+    /**
+     * Sets the quality level for visual effects performance management
+     * @param {string} level - Quality level: 'high', 'medium', or 'low'
+     */
     setQualityLevel(level) {
         this.qualityLevel = level;
         
@@ -674,6 +823,9 @@ export class VisualEffects {
         this.effectsEnabled = settings.effectsEnabled;
     }
     
+    /**
+     * Disposes of all materials and textures to free memory
+     */
     dispose() {
         // Clean up materials and textures
         for (const [type, material] of this.liquidMaterials) {

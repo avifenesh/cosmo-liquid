@@ -1,9 +1,73 @@
+/**
+ * Physics Web Worker - Handles particle physics simulation in a separate thread
+ * Processes particle dynamics, gravity, fluid dynamics, and liquid-specific physics
+ * to avoid blocking the main rendering thread.
+ * 
+ * @fileoverview This worker runs the complete physics simulation including
+ * gravitational forces, SPH fluid dynamics, and liquid-specific effects.
+ * It maintains its own copies of the physics engine and particle system
+ * to perform calculations independently from the main thread.
+ */
+
 importScripts('https://unpkg.com/three@0.158.0/build/three.min.js');
 
-// PhysicsEngine and ParticleSystem code will be here
+/**
+ * @typedef {Object} ParticleData
+ * @property {Object} position - Plain object with x, y, z properties
+ * @property {number} position.x - X coordinate of the particle
+ * @property {number} position.y - Y coordinate of the particle
+ * @property {number} position.z - Z coordinate of the particle
+ * @property {Object} velocity - Plain object with x, y, z properties
+ * @property {number} velocity.x - X velocity component
+ * @property {number} velocity.y - Y velocity component
+ * @property {number} velocity.z - Z velocity component
+ * @property {number} mass - Mass of the particle
+ * @property {number} charge - Electric charge of the particle
+ * @property {string} liquidType - Type of liquid the particle represents
+ * @property {boolean} active - Whether the particle is active in simulation
+ * @property {number} age - Age of the particle in seconds
+ */
 
+/**
+ * @typedef {Object} GravityWellData
+ * @property {Object} position - Plain object with x, y, z properties
+ * @property {number} position.x - X coordinate of the gravity well
+ * @property {number} position.y - Y coordinate of the gravity well
+ * @property {number} position.z - Z coordinate of the gravity well
+ * @property {number} mass - Mass of the gravity well
+ * @property {number} radius - Radius of the gravity well
+ * @property {string} type - Type of celestial body
+ * @property {boolean} active - Whether the gravity well is active
+ */
+
+/**
+ * @typedef {Object} WorkerMessage
+ * @property {ParticleData[]} particles - Array of particle data objects
+ * @property {number} deltaTime - Time delta for the physics update in seconds
+ * @property {GravityWellData[]} gravityWells - Array of gravity well data objects
+ */
+
+/**
+ * Handles messages from the main thread to run the physics simulation
+ * Re-hydrates plain objects into THREE.Vector3 instances, runs physics update,
+ * and sends updated particle data back to main thread
+ * @param {MessageEvent} e - The message event from main thread
+ * @param {WorkerMessage} e.data - The data sent from the main thread
+ */
 self.onmessage = function(e) {
-    const { particles, deltaTime, gravityWells } = e.data;
+    const { particles: plainParticles, deltaTime, gravityWells: plainGravityWells } = e.data;
+
+    // Re-hydrate plain objects into THREE.Vector3 instances
+    const particles = plainParticles.map(p => {
+        p.position = new THREE.Vector3(p.position.x, p.position.y, p.position.z);
+        p.velocity = new THREE.Vector3(p.velocity.x, p.velocity.y, p.velocity.z);
+        return p;
+    });
+
+    const gravityWells = plainGravityWells.map(gw => {
+        gw.position = new THREE.Vector3(gw.position.x, gw.position.y, gw.position.z);
+        return gw;
+    });
 
     // Initialize engines if they don't exist
     if (!self.physicsEngine) {

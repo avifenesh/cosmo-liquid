@@ -1,22 +1,79 @@
 /**
  * CelestialBodies - Real celestial body system with accurate masses and properties
  * Allows users to place realistic space objects as gravity sources
+ * @class
  */
 
 import * as THREE from 'three';
 
+/**
+ * @typedef {Object} VisualEffects
+ * @property {boolean} [glow] - Whether the body has a glow effect
+ * @property {boolean} [rings] - Whether the body has rings
+ * @property {boolean} [atmosphere] - Whether the body has atmospheric effects
+ * @property {boolean} [clouds] - Whether the body has cloud effects
+ * @property {boolean} [dust] - Whether the body has dust effects
+ * @property {boolean} [storms] - Whether the body has storm effects
+ * @property {boolean} [corona] - Whether the body has corona effects
+ * @property {boolean} [flares] - Whether the body has solar flare effects
+ * @property {boolean} [radiation] - Whether the body has radiation effects
+ * @property {boolean} [intense] - Whether the body has intense effects
+ * @property {boolean} [xray] - Whether the body emits X-ray effects
+ * @property {boolean} [pulsar] - Whether the body has pulsar effects
+ * @property {boolean} [magneticField] - Whether the body has magnetic field effects
+ * @property {boolean} [spacetimeDistortion] - Whether the body distorts spacetime
+ * @property {boolean} [accretionDisk] - Whether the body has an accretion disk
+ * @property {boolean} [eventHorizon] - Whether the body has an event horizon
+ * @property {boolean} [hawkingRadiation] - Whether the body emits Hawking radiation
+ * @property {boolean} [lensingEffect] - Whether the body has gravitational lensing effects
+ * @property {boolean} [tidalForces] - Whether the body creates tidal forces
+ */
+
+/**
+ * @typedef {Object} CelestialTypeData
+ * @property {string} name - The display name of the celestial body
+ * @property {number} mass - The mass of the celestial body (scaled for simulation)
+ * @property {number} radius - The radius of the celestial body
+ * @property {THREE.Color} color - The primary color of the celestial body
+ * @property {string} description - A description of the celestial body
+ * @property {string} icon - The emoji icon for the celestial body
+ * @property {number} gravitationalInfluence - The gravitational influence multiplier
+ * @property {VisualEffects} visualEffects - The visual effects configuration
+ */
+
+/**
+ * @typedef {Object} ActiveCelestialBody
+ * @property {string} id - Unique identifier for the celestial body
+ * @property {string} type - The type of celestial body
+ * @property {CelestialTypeData} data - The celestial body configuration data
+ * @property {Object} physics - The physics body in the simulation
+ * @property {THREE.Mesh} visual - The visual mesh representation
+ * @property {THREE.Vector3} position - The position of the celestial body
+ */
+
 const textureLoader = new THREE.TextureLoader();
 
 export class CelestialBodies {
+    /**
+     * Creates a new CelestialBodies system
+     * @constructor
+     * @param {import('./PhysicsEngine.js').PhysicsEngine} physicsEngine - The physics engine instance
+     * @param {import('./RenderEngine.js').RenderEngine} renderEngine - The render engine instance
+     */
     constructor(physicsEngine, renderEngine) {
+        /** @type {import('./PhysicsEngine.js').PhysicsEngine} The physics engine for gravity simulation */
         this.physicsEngine = physicsEngine;
+        /** @type {import('./RenderEngine.js').RenderEngine} The render engine for visual representation */
         this.renderEngine = renderEngine;
         
-        // Currently selected celestial type
+        /** @type {string} Currently selected celestial type */
         this.selectedCelestialType = 'earth';
         
-        // Active celestial bodies in the simulation
+        /** @type {Map<string, ActiveCelestialBody>} Active celestial bodies in the simulation */
         this.activeBodies = new Map();
+        
+        /** @type {Object<string, CelestialTypeData>} Definitions of all celestial body types */
+        this.celestialTypes = {};
         
         // Initialize celestial body definitions
         this.initializeCelestialTypes();
@@ -24,6 +81,10 @@ export class CelestialBodies {
         console.log('CelestialBodies system initialized');
     }
     
+    /**
+     * Initializes the celestial body type definitions with realistic properties
+     * @private
+     */
     initializeCelestialTypes() {
         // Real celestial body data with accurate relative masses and properties
         this.celestialTypes = {
@@ -157,17 +218,27 @@ export class CelestialBodies {
         };
     }
     
-    // Get celestial type data
+    /**
+     * Gets the configuration data for a given celestial body type
+     * @param {string} type - The type of celestial body (e.g., 'earth', 'sun')
+     * @returns {CelestialTypeData} The configuration object for the celestial body
+     */
     getCelestialType(type) {
         return this.celestialTypes[type] || this.celestialTypes.earth;
     }
     
-    // Get all available celestial types
+    /**
+     * Gets a list of all available celestial body types
+     * @returns {string[]} An array of celestial body type names
+     */
     getAllCelestialTypes() {
         return Object.keys(this.celestialTypes);
     }
     
-    // Set the currently selected celestial type
+    /**
+     * Sets the type of celestial body to be placed next
+     * @param {string} type - The celestial body type to select
+     */
     setSelectedCelestialType(type) {
         if (this.celestialTypes[type]) {
             this.selectedCelestialType = type;
@@ -175,7 +246,11 @@ export class CelestialBodies {
         }
     }
     
-    // Place a celestial body at the specified position
+    /**
+     * Places a celestial body in the simulation at the given position
+     * @param {THREE.Vector3} position - The 3D world position to place the body
+     * @returns {string} The ID of the newly created celestial body
+     */
     placeCelestialBody(position) {
         const celestialData = this.getCelestialType(this.selectedCelestialType);
         
@@ -208,7 +283,13 @@ export class CelestialBodies {
         return celestialId;
     }
     
-    // Create visual representation of celestial body
+    /**
+     * Creates a visual representation of a celestial body with realistic materials and shaders
+     * @param {THREE.Vector3} position - The position where the celestial body should be placed
+     * @param {CelestialTypeData} celestialData - The configuration data for the celestial body
+     * @returns {THREE.Mesh} The created mesh with appropriate material and animations
+     * @private
+     */
     createCelestialVisual(position, celestialData) {
         const geometry = new THREE.SphereGeometry(celestialData.radius, 32, 16);
         
@@ -1005,7 +1086,10 @@ export class CelestialBodies {
       }
     }
     
-    // Update celestial body effects
+    /**
+     * Updates the animations and effects for all active celestial bodies.
+     * @param {number} deltaTime - The time elapsed since the last frame.
+     */
     update(deltaTime) {
         const time = performance.now() * 0.001;
         
@@ -1045,7 +1129,10 @@ export class CelestialBodies {
         }
     }
     
-    // Remove celestial body
+    /**
+     * Removes a celestial body from the simulation.
+     * @param {string} id - The ID of the celestial body to remove.
+     */
     removeCelestialBody(id) {
         const body = this.activeBodies.get(id);
         if (body) {
@@ -1062,7 +1149,9 @@ export class CelestialBodies {
         }
     }
     
-    // Clear all celestial bodies
+    /**
+     * Removes all celestial bodies from the simulation.
+     */
     clearAll() {
         for (const id of this.activeBodies.keys()) {
             this.removeCelestialBody(id);

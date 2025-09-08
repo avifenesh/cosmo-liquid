@@ -1,30 +1,88 @@
 /**
  * InputManager - Handles mouse, keyboard, and touch input
  * Provides unified input event system for the application
+ * @class
+ */
+
+/**
+ * @typedef {Object} Position2D
+ * @property {number} x - The x coordinate
+ * @property {number} y - The y coordinate
+ */
+
+/**
+ * @typedef {Object} MouseState
+ * @property {boolean} left - Whether left mouse button is pressed
+ * @property {boolean} right - Whether right mouse button is pressed
+ * @property {boolean} middle - Whether middle mouse button is pressed
+ */
+
+/**
+ * @typedef {Object} MouseEvent
+ * @property {number} button - The mouse button code (0=left, 1=middle, 2=right)
+ * @property {Position2D} position - The mouse position
+ * @property {MouseState} buttons - The state of all mouse buttons
+ */
+
+/**
+ * @typedef {Object} KeyboardEvent
+ * @property {string} key - The key value
+ * @property {string} code - The key code
+ * @property {boolean} altKey - Whether Alt key is pressed
+ * @property {boolean} ctrlKey - Whether Ctrl key is pressed
+ * @property {boolean} shiftKey - Whether Shift key is pressed
+ * @property {boolean} metaKey - Whether Meta key is pressed
+ */
+
+/**
+ * @typedef {Object} TouchEvent
+ * @property {number} touchId - The touch identifier
+ * @property {Position2D} position - The touch position
+ * @property {Position2D[]} touches - All active touch positions
+ * @property {Position2D} [delta] - The movement delta (for touchmove events)
+ * @property {Position2D} [startPosition] - The starting position (for touchend events)
  */
 
 export class InputManager {
+    /**
+     * Creates a new InputManager instance
+     * @constructor
+     * @param {HTMLCanvasElement} canvas - The canvas element to attach input listeners to
+     */
     constructor(canvas) {
+        /** @type {HTMLCanvasElement} The canvas element for input capture */
         this.canvas = canvas;
+        /** @type {Map<string, Function[]>} Map of event listeners by event type */
         this.eventListeners = new Map();
         
         // Mouse state
+        /** @type {Position2D} Current mouse position */
         this.mousePosition = { x: 0, y: 0 };
+        /** @type {MouseState} State of mouse buttons */
         this.mousePressed = { left: false, right: false, middle: false };
+        /** @type {Position2D} Previous frame mouse position */
         this.mousePreviousPosition = { x: 0, y: 0 };
+        /** @type {Position2D} Mouse movement delta */
         this.mouseDelta = { x: 0, y: 0 };
         
         // Keyboard state
+        /** @type {Set<string>} Set of currently pressed keys */
         this.keysPressed = new Set();
+        /** @type {Set<string>} Set of keys pressed this frame */
         this.keysJustPressed = new Set();
+        /** @type {Set<string>} Set of keys released this frame */
         this.keysJustReleased = new Set();
         
         // Touch state (for future mobile support)
+        /** @type {Map<number, Position2D>} Map of active touches by ID */
         this.touches = new Map();
+        /** @type {Map<number, Position2D>} Map of touch start positions by ID */
         this.touchStartPositions = new Map();
         
         // Configuration
+        /** @type {boolean} Whether input processing is enabled */
         this.enabled = true;
+        /** @type {boolean} Whether to prevent default browser behaviors */
         this.preventDefaults = true;
         
         this.initialize();

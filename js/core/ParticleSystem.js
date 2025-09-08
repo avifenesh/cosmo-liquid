@@ -1,53 +1,111 @@
 /**
  * ParticleSystem - Manages particle lifecycle and physics integration
  * Implements object pooling and efficient particle management with SPH fluid dynamics
+ * @class
  */
 
 import * as THREE from 'three';
 
+/**
+ * @typedef {Object} StreamConfig
+ * @property {THREE.Vector3} position - The starting position of the stream
+ * @property {THREE.Vector3} velocity - The initial velocity of the particles
+ * @property {string} liquidType - The type of liquid to emit
+ * @property {number} [streamRate=10] - The number of particles to generate per second
+ * @property {number} [spread=0.1] - The spread of the particle stream
+ */
+
+/**
+ * @typedef {Object} StreamUpdateConfig
+ * @property {THREE.Vector3} position - The new position of the stream
+ * @property {THREE.Vector3} velocity - The new velocity of the particles
+ */
+
+/**
+ * @typedef {Object} LiquidPhysicsProperties
+ * @property {number} mass - Mass multiplier for the liquid
+ * @property {number} charge - Electric charge of the liquid
+ * @property {boolean} electromagnetic - Whether affected by electromagnetic forces
+ * @property {boolean} quantum - Whether quantum effects apply
+ * @property {boolean} timeDilation - Whether time dilation effects apply
+ * @property {number} uncertainty - Quantum uncertainty multiplier
+ * @property {number} solidification - Crystallization force strength
+ * @property {boolean} lightSpeed - Whether the liquid can approach light speed
+ * @property {number} maxVelocity - Maximum velocity for the liquid
+ */
+
 export class ParticleSystem {
+    /**
+     * Creates a new ParticleSystem instance
+     * @constructor
+     * @param {import('./PhysicsEngine.js').PhysicsEngine} physicsEngine - The physics engine instance
+     */
     constructor(physicsEngine) {
+      /** @type {import('./PhysicsEngine.js').PhysicsEngine} The physics engine for particle simulation */
       this.physicsEngine = physicsEngine;
 
       // Physics worker
+      /** @type {Worker} Web worker for physics calculations */
       this.physicsWorker = new Worker('./js/workers/physics.worker.js');
       this.physicsWorker.onmessage = (e) => {
         this.activeParticles = new Set(e.data.particles);
       };
 
       // Particle management
+      /** @type {Particle[]} Array of all particles */
       this.particles = [];
+      /** @type {Set<Particle>} Set of currently active particles */
       this.activeParticles = new Set();
+      /** @type {Particle[]} Pool of available particles for reuse */
       this.particlePool = [];
+      /** @type {number} Maximum number of particles allowed */
       this.maxParticles = 10000;
 
       // Streaming state
+      /** @type {boolean} Whether particles are currently being streamed */
       this.isStreaming = false;
+      /** @type {StreamConfig|null} Current stream configuration */
       this.streamConfig = null;
+      /** @type {number} Timer for stream generation timing */
       this.streamTimer = 0;
 
       // Performance optimization
+      /** @type {boolean} Whether particle geometry needs updating */
       this.geometryNeedsUpdate = false;
+      /** @type {THREE.BufferGeometry|null} Geometry for particle rendering */
       this.particleGeometry = null;
+      /** @type {THREE.Points|null} Mesh for particle rendering */
       this.particleMesh = null;
 
       // Typed arrays for efficient GPU communication
+      /** @type {Float32Array} Array of particle positions */
       this.positions = new Float32Array(this.maxParticles * 3);
+      /** @type {Float32Array} Array of particle velocities */
       this.velocities = new Float32Array(this.maxParticles * 3);
+      /** @type {Float32Array} Array of particle colors */
       this.colors = new Float32Array(this.maxParticles * 3);
-      // Additional per-particle attributes for advanced shaders
+      /** @type {Float32Array} Array of custom particle colors for shaders */
       this.customColors = new Float32Array(this.maxParticles * 3);
+      /** @type {Float32Array} Array of particle point sizes */
       this.pointSizes = new Float32Array(this.maxParticles);
+      /** @type {Float32Array} Array of particle sizes */
       this.sizes = new Float32Array(this.maxParticles);
+      /** @type {Float32Array} Array of particle ages */
       this.ages = new Float32Array(this.maxParticles);
 
       this.initialize();
 
       // Debug controls
-      this.enableGravityDebug = false; // Set true to log gravity samples periodically
+      /** @type {boolean} Whether to enable gravity debug logging */
+      this.enableGravityDebug = false;
+      /** @type {number} Timer for gravity debug logging */
       this._gravityDebugTimer = 0;
     }
     
+    /**
+     * Initializes the particle system by pre-allocating particle pool and creating geometry
+     * @private
+     */
     initialize() {
         // Pre-allocate particle pool
         for (let i = 0; i < this.maxParticles; i++) {
@@ -60,6 +118,10 @@ export class ParticleSystem {
         console.log(`ParticleSystem initialized with ${this.maxParticles} particles`);
     }
     
+    /**
+     * Creates the Three.js buffer geometry for efficient particle rendering
+     * @private
+     */
     createParticleGeometry() {
       this.particleGeometry = new THREE.BufferGeometry();
 
@@ -88,6 +150,10 @@ export class ParticleSystem {
       this.particleGeometry.setDrawRange(0, 0);
     }
     
+    /**
+     * Starts a new particle stream with the given configuration
+     * @param {StreamConfig} config - The configuration for the particle stream
+     */
     startStream(config) {
         this.isStreaming = true;
         this.streamConfig = {
@@ -102,6 +168,10 @@ export class ParticleSystem {
         console.log(`Started particle stream: ${config.liquidType}`);
     }
     
+    /**
+     * Updates the position and velocity of the current particle stream
+     * @param {StreamUpdateConfig} config - The updated configuration for the particle stream
+     */
     updateStream(config) {
         if (!this.isStreaming) return;
         
@@ -109,6 +179,9 @@ export class ParticleSystem {
         this.streamConfig.velocity.copy(config.velocity);
     }
     
+    /**
+     * Stops the current particle stream
+     */
     stopStream() {
         this.isStreaming = false;
         this.streamConfig = null;
@@ -116,6 +189,10 @@ export class ParticleSystem {
         console.log('Stopped particle stream');
     }
     
+    /**
+     * Updates the entire particle system for one frame
+     * @param {number} deltaTime - The time elapsed since the last frame
+     */
     update(deltaTime) {
         this.streamTimer += deltaTime;
         if (this.enableGravityDebug) {
@@ -142,6 +219,11 @@ export class ParticleSystem {
         this.cleanupParticles();
     }
     
+    /**
+     * Generates new particles for the active stream based on stream rate
+     * @param {number} deltaTime - The time elapsed since last generation
+     * @private
+     */
     generateStreamParticles(deltaTime) {
       // Generate particles more aggressively for visibility
       const particlesToGenerate = Math.max(
@@ -160,6 +242,12 @@ export class ParticleSystem {
       }
     }
     
+    /**
+     * Initializes a newly created particle with stream configuration
+     * @param {Particle} particle - The particle to initialize
+     * @param {StreamConfig} config - The stream configuration
+     * @private
+     */
     initializeStreamParticle(particle, config) {
         // Position with small random spread
         particle.position.copy(config.position);
@@ -193,6 +281,11 @@ export class ParticleSystem {
         particle.active = true;
     }
     
+    /**
+     * Updates all active particles with physics simulation
+     * @param {number} deltaTime - The time elapsed since the last frame
+     * @private
+     */
     updateParticles(deltaTime) {
         const gravityWells = this.physicsEngine.getGravityWells();
         
@@ -246,6 +339,13 @@ export class ParticleSystem {
         }
     }
     
+    /**
+     * Applies liquid-specific physics effects to particles
+     * @param {Particle} particle - The particle to apply forces to
+     * @param {THREE.Vector3} totalForce - The total force vector to modify
+     * @param {number} deltaTime - The time elapsed since the last frame
+     * @private
+     */
     applyLiquidSpecificForces(particle, totalForce, deltaTime) {
         const properties = this.physicsEngine.getLiquidPhysicsProperties(particle.liquidType);
         
@@ -295,6 +395,13 @@ export class ParticleSystem {
         }
     }
     
+    /**
+     * Applies crystallization forces that attract crystal particles to each other
+     * @param {Particle} particle - The particle to apply crystallization forces to
+     * @param {THREE.Vector3} totalForce - The total force vector to modify
+     * @param {LiquidPhysicsProperties} properties - The liquid physics properties
+     * @private
+     */
     applyCrystallizationForces(particle, totalForce, properties) {
         // Find nearby particles of the same type
         const crystallizationRadius = 10;
@@ -320,6 +427,11 @@ export class ParticleSystem {
         }
     }
     
+    /**
+     * Applies constraints and boundaries to keep particles within simulation limits
+     * @param {Particle} particle - The particle to apply constraints to
+     * @private
+     */
     applyConstraints(particle) {
         // Soft boundaries - particles are gently pulled back if they go too far
         const softBoundary = 1500;
@@ -358,6 +470,12 @@ export class ParticleSystem {
         }
     }
     
+    /**
+     * Updates visual properties of particles based on physics state and liquid type
+     * @param {Particle} particle - The particle to update visuals for
+     * @param {number} deltaTime - The time elapsed since the last frame
+     * @private
+     */
     updateParticleVisuals(particle, deltaTime) {
       // Particles maintain full visibility since they don't fade with age
       // Visual effects are based on physics state instead of lifetime
@@ -425,6 +543,10 @@ export class ParticleSystem {
       particle.size += (targetSize - particle.size) * smoothFactor;
     }
     
+    /**
+     * Updates Three.js buffer geometry attributes with current particle data
+     * @private
+     */
     updateGeometryAttributes() {
         let index = 0;
         
@@ -466,6 +588,10 @@ export class ParticleSystem {
         }
     }
     
+    /**
+     * Removes inactive particles from the active set and returns them to the pool
+     * @private
+     */
     cleanupParticles() {
         // Remove dead particles from active set and return to pool
         const deadParticles = [];
@@ -482,6 +608,11 @@ export class ParticleSystem {
         }
     }
     
+    /**
+     * Acquires a particle from the pool for use
+     * @returns {Particle|null} A reset particle ready for use, or null if pool is empty
+     * @private
+     */
     acquireParticle() {
         if (this.particlePool.length === 0) return null;
         
@@ -490,12 +621,22 @@ export class ParticleSystem {
         return particle;
     }
     
+    /**
+     * Releases a particle back to the pool for reuse
+     * @param {Particle} particle - The particle to release
+     * @private
+     */
     releaseParticle(particle) {
         particle.active = false;
         this.particlePool.push(particle);
     }
     
-    // Liquid type configurations
+    /**
+     * Gets the color configuration for a specific liquid type
+     * @param {string} liquidType - The type of liquid to get color for
+     * @returns {THREE.Color} The color for the liquid type, or cyan as fallback
+     * @private
+     */
     getLiquidColor(liquidType) {
         const colors = {
             plasma: new THREE.Color(0x00ffff),      // Cyan
@@ -511,6 +652,12 @@ export class ParticleSystem {
         return colors[liquidType] || colors.plasma;
     }
     
+    /**
+     * Gets the size configuration for a specific liquid type
+     * @param {string} liquidType - The type of liquid to get size for
+     * @returns {number} The size for the liquid type, or 2.0 as fallback
+     * @private
+     */
     getLiquidSize(liquidType) {
         const sizes = {
             plasma: 2.0,
@@ -526,6 +673,12 @@ export class ParticleSystem {
         return sizes[liquidType] || 2.0;
     }
     
+    /**
+     * Gets the lifetime configuration for a specific liquid type
+     * @param {string} liquidType - The type of liquid to get lifetime for
+     * @returns {number} The lifetime for the liquid type (all are infinite)
+     * @private
+     */
     getLiquidLifetime(liquidType) {
         // Particles now have infinite lifetime - they only disappear when explicitly cleared
         // or when they go too far from the origin
@@ -543,15 +696,25 @@ export class ParticleSystem {
         return lifetimes[liquidType] || Infinity;
     }
     
-    // Public interface
+    /**
+     * Gets the number of currently active particles
+     * @returns {number} The number of active particles
+     */
     getActiveParticleCount() {
         return this.activeParticles.size;
     }
     
+    /**
+     * Gets the maximum number of particles allowed
+     * @returns {number} The maximum particle count
+     */
     getMaxParticles() {
         return this.maxParticles;
     }
     
+    /**
+     * Clears all active particles from the system
+     */
     clearAllParticles() {
         for (const particle of this.activeParticles) {
             this.releaseParticle(particle);
@@ -559,6 +722,9 @@ export class ParticleSystem {
         this.activeParticles.clear();
     }
     
+    /**
+     * Disposes of the particle system and cleans up all resources
+     */
     dispose() {
         this.clearAllParticles();
         
@@ -568,31 +734,56 @@ export class ParticleSystem {
     }
 }
 
-// Particle class for individual particle data
+/**
+ * Individual particle data class
+ * @class
+ */
 class Particle {
+    /**
+     * Creates a new Particle instance
+     * @constructor
+     * @param {number} id - Unique identifier for the particle
+     */
     constructor(id) {
+        /** @type {number} Unique identifier for the particle */
         this.id = id;
+        /** @type {THREE.Vector3} Current position of the particle */
         this.position = new THREE.Vector3();
+        /** @type {THREE.Vector3} Current velocity of the particle */
         this.velocity = new THREE.Vector3();
+        /** @type {THREE.Vector3} Current acceleration of the particle */
         this.acceleration = new THREE.Vector3();
+        /** @type {THREE.Color} Current color of the particle */
         this.color = new THREE.Color();
         
+        /** @type {number} Mass of the particle */
         this.mass = 1.0;
+        /** @type {number} Electric charge of the particle */
         this.charge = 0.0;
+        /** @type {number} Radius of the particle for collision detection */
         this.radius = 1.0;
+        /** @type {number} Current visual size of the particle */
         this.size = 2.0;
+        /** @type {number} Base size before effects are applied */
         this.baseSize = 2.0;
         
+        /** @type {number} Age of the particle in seconds */
         this.age = 0;
+        /** @type {number} Lifetime of the particle in seconds */
         this.lifetime = 10.0;
+        /** @type {boolean} Whether the particle is active */
         this.active = false;
         
+        /** @type {string} The type of liquid this particle represents */
         this.liquidType = 'plasma';
         
-        // Physics state for integration
+        /** @type {THREE.Vector3} Previous position for physics integration */
         this.previousPosition = new THREE.Vector3();
     }
     
+    /**
+     * Resets the particle to its initial state for reuse
+     */
     reset() {
         this.position.set(0, 0, 0);
         this.velocity.set(0, 0, 0);
