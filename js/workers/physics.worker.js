@@ -11,6 +11,37 @@
 
 importScripts('https://unpkg.com/three@0.158.0/build/three.min.js');
 
+// Global error interception to surface otherwise silent failures
+self.onerror = function(message, source, lineno, colno, error) {
+  try {
+    self.postMessage({
+      error: {
+        message: message?.toString() || 'WorkerError',
+        stack: (error && error.stack) ? error.stack.split('\n').slice(0,8).join('\n') : `at ${source}:${lineno}:${colno}`,
+        source,
+        line: lineno,
+        column: colno,
+        phase: 'global-onerror'
+      }
+    });
+  } catch(_) {}
+  // Returning false lets default logging happen too
+  return false;
+};
+
+self.onunhandledrejection = function(ev) {
+  try {
+    const reason = ev && ev.reason ? ev.reason : { message: 'Unknown rejection'};
+    self.postMessage({
+      error: {
+        message: reason.message || reason.toString(),
+        stack: reason.stack ? reason.stack.split('\n').slice(0,8).join('\n') : 'no-stack',
+        phase: 'unhandledrejection'
+      }
+    });
+  } catch(_) {}
+};
+
 /**
  * @typedef {Object} ParticleData
  * @property {Object} position - Plain object with x, y, z properties
@@ -103,18 +134,35 @@ self.onmessage = function (e) {
 
     self.particleSystem.update(dt);
 
-    const updatedParticles = Array.from(self.particleSystem.activeParticles);
-    const tEnd = performance.now();
-    self.postMessage({
-      particles: updatedParticles,
-      meta: {
-        dt: dt,
-        count,
-        ms: tEnd - tStart,
-        fluid: self.particleSystem.fluidDynamicsEnabled,
-        octree: self.particleSystem.octreeEnabled,
-      },
+    const updatedParticles = Array.from(
+      self.particleSystem.activeParticles
+    ).map((p) => {
+      // Ensure numeric masses & clamp positions to avoid JSON serialization overflow / NaN
+      if (!isFinite(p.mass) || typeof p.mass !== "number") p.mass = 1.0;
+      if (!isFinite(p.position.x)) p.position.x = 0;
+      if (!isFinite(p.position.y)) p.position.y = 0;
+      if (!isFinite(p.position.z)) p.position.z = 0;
+      return p;
     });
+    const tEnd = performance.now();
+    try {
+      self.postMessage({
+        particles: updatedParticles,
+        meta: {
+          dt: dt,
+          count,
+          ms: tEnd - tStart,
+          fluid: self.particleSystem.fluidDynamicsEnabled,
+          octree: self.particleSystem.octreeEnabled,
+        },
+      });
+    } catch (postErr) {
+      try {
+        self.postMessage({
+          error: { message: "postMessage failed", detail: postErr.message },
+        });
+      } catch (_) {}
+    }
   } catch (err) {
     // Post structured error & attempt minimal fallback integration to keep system alive
     try {

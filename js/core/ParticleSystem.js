@@ -47,23 +47,36 @@ export class ParticleSystem {
     // Physics worker
     /** @type {Worker} Web worker for physics calculations */
     this.physicsWorker = new Worker("./js/workers/physics.worker.js");
-    this.physicsWorker.onmessage = (e) => {
-      // Type-safe worker message handling
-      if (e.data && Array.isArray(e.data.particles)) {
-        // Update existing particles with physics results from worker
-        const updatedParticles = e.data.particles;
+    // Diagnostics state for physics worker
+    this.lastPhysicsError = null; // {message, stack, time, phase?}
+    this.lastPhysicsMeta = null; // {dt,count,ms,fluid,octree}
+    this.workerMessageCounter = 0;
 
-        // Create a map for efficient lookup of existing particles
+    this.physicsWorker.onmessage = (e) => {
+      const data = e.data || {};
+      // Capture meta telemetry
+      if (data.meta) {
+        this.lastPhysicsMeta = { ...data.meta, time: performance.now() };
+        // Light debug log occasionally
+        if (this.workerMessageCounter++ % 240 === 0) {
+          console.log("[PhysicsMeta]", this.lastPhysicsMeta);
+        }
+      }
+      // Capture structured error
+      if (data.error) {
+        this.lastPhysicsError = { ...data.error, time: performance.now() };
+        console.error("[PhysicsWorkerError]", this.lastPhysicsError);
+        return; // Don't try to process particles when an error payload
+      }
+      if (data && Array.isArray(data.particles)) {
+        const updatedParticles = data.particles;
         const particleMap = new Map();
         for (const particle of this.activeParticles) {
           particleMap.set(particle.id, particle);
         }
-
-        // Update existing particles with worker results
         for (const updatedData of updatedParticles) {
           const existingParticle = particleMap.get(updatedData.id);
           if (existingParticle) {
-            // Update physics properties from worker
             existingParticle.position.set(
               updatedData.position.x,
               updatedData.position.y,
@@ -78,23 +91,39 @@ export class ParticleSystem {
             existingParticle.age = updatedData.age;
             existingParticle.density = updatedData.density || 0;
             existingParticle.pressure = updatedData.pressure || 0;
-
-            // Keep visual properties managed by main thread
-            // (color, size, etc. are handled in updateParticleVisuals)
           }
         }
-
-        // Remove particles that are no longer active
         const activeIds = new Set(updatedParticles.map((p) => p.id));
         for (const particle of this.activeParticles) {
-          if (!activeIds.has(particle.id)) {
-            particle.active = false;
-          }
+          if (!activeIds.has(particle.id)) particle.active = false;
         }
-      } else {
-        console.warn("Invalid worker message format:", e.data);
+      } else if (data && Object.keys(data).length) {
+        console.warn("Invalid worker message format", data);
       }
     };
+
+    this.physicsWorker.addEventListener("error", (ev) => {
+      const info = {
+        message: ev.message,
+        filename: ev.filename,
+        lineno: ev.lineno,
+        colno: ev.colno,
+        time: performance.now(),
+        phase: "worker-error-event",
+      };
+      this.lastPhysicsError = info;
+      console.error("[PhysicsWorkerEventError]", info);
+    });
+    this.physicsWorker.addEventListener("messageerror", (ev) => {
+      const info = {
+        message: "Message deserialization error",
+        data: ev.data,
+        time: performance.now(),
+        phase: "worker-messageerror",
+      };
+      this.lastPhysicsError = info;
+      console.error("[PhysicsWorkerMessageError]", info);
+    });
 
     // Particle management
     /** @type {Particle[]} Array of all particles */
@@ -888,6 +917,20 @@ export class ParticleSystem {
    */
   getActiveParticleCount() {
     return this.activeParticles.size;
+  }
+
+  /**
+   * Returns diagnostic information about physics worker and simulation flags.
+   * @returns {{activeCount:number,maxParticles:number,simulateAll:boolean,lastMeta:object|null,lastError:object|null}}
+   */
+  getPhysicsStatus() {
+    return {
+      activeCount: this.getActiveParticleCount(),
+      maxParticles: this.maxParticles,
+      simulateAll: this.simulateAllParticles,
+      lastMeta: this.lastPhysicsMeta,
+      lastError: this.lastPhysicsError
+    };
   }
 
   /**
