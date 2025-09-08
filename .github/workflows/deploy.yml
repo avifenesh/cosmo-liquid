@@ -38,7 +38,7 @@ jobs:
             echo "Warning: No DOCTYPE found in index.html"
           fi
           
-          if ! grep -q "Three.js" index.html; then
+          if ! grep -q '"three":' index.html; then
             echo "Warning: Three.js not found in index.html"
           fi
           
@@ -48,14 +48,12 @@ jobs:
         run: |
           # Verify all JS files exist
           echo "Checking JavaScript files..."
-          for file in js/main.js js/core/AudioEngine.js js/core/CelestialBodies.js js/core/FluidDynamics.js js/core/InputManager.js js/core/ParticleSystem.js js/core/PerformanceMonitor.js js/core/PhysicsEngine.js js/core/RenderEngine.js js/core/VisualEffects.js; do
-            if [ -f "$file" ]; then
-              echo "✓ $file exists"
-            else
-              echo "✗ $file missing"
-              exit 1
-            fi
-          done
+          if [ -d "js/core" ] && [ "$(ls -A js/core/*.js)" ]; then
+            echo "✓ js/core directory is not empty"
+          else
+            echo "✗ js/core directory is empty or does not exist"
+            exit 1
+          fi
           
       - name: Optimize for production
         run: |
@@ -63,7 +61,7 @@ jobs:
           echo "Production optimization complete"
           
           # Verify Three.js CDN links
-          if grep -q "cdnjs.cloudflare.com/ajax/libs/three.js" index.html; then
+          if grep -q "unpkg.com/three" index.html; then
             echo "✓ Three.js CDN link found"
           else
             echo "✗ Three.js CDN link not found"

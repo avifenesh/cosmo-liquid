@@ -14,7 +14,9 @@ export class PhysicsEngine {
         
         // Simulation parameters
         this.timeScale = 1.0;
-        this.gravityStrength = 1000.0; // Scaled for visual effect
+    // Legacy scalar multiplier for gravity (will be combined with normalized scaling)
+    this.gravityStrength = 1000.0; // (legacy) overall strength; can tune at runtime
+    this.gravityScale = 1.0; // New secondary global scaling for fine tuning
         this.dampingFactor = 0.995;
         
         // Gravity wells
@@ -69,24 +71,40 @@ export class PhysicsEngine {
     
     // Force calculation methods
     calculateGravitationalForce(particle, gravityWell) {
-        const displacement = new THREE.Vector3()
-            .subVectors(gravityWell.position, particle.position);
-        
-        const distance = displacement.length();
-        
-        // Avoid singularity at center
-        if (distance < gravityWell.radius) {
-            return new THREE.Vector3(0, 0, 0);
+        const displacement = new THREE.Vector3().subVectors(
+          gravityWell.position,
+          particle.position
+        );
+        let distance = displacement.length();
+
+        // Treat very small or negative mass liquids safely (negative mass breaks F=Gm1m2/r^2 symmetry)
+        const particleMass = Math.max(0.0001, Math.abs(particle.mass));
+        const wellMass = Math.max(0.0001, gravityWell.mass);
+
+        // Soft minimum distance to avoid huge spikes & particle tunneling
+        const minDistance = gravityWell.radius * 1.1; // allow some gravitational pull just outside surface
+        if (distance < minDistance) distance = minDistance;
+
+        // Optional outer influence falloff (beyond a cutoff scale gravity tapers) to keep particles bound visually
+        const influenceRadius = gravityWell.radius * 40; // heuristic radial influence region
+        let falloff = 1.0;
+        if (distance > influenceRadius) {
+          // Smooth falloff using inverse quartic beyond influence region
+          const excess = distance - influenceRadius;
+          falloff = 1.0 / (1.0 + Math.pow(excess / influenceRadius, 2.0));
         }
-        
-        // Newton's law of gravitation: F = GMm/r²
-        const forceMagnitude = (this.gravityStrength * gravityWell.mass * particle.mass) 
-            / (distance * distance);
-        
-        // Direction towards gravity well
+
+        // Combined gravitational formula with tunable scaling
+        // Base: F = (gravityStrength * gravityScale * m1 * m2) / r^2
+        const baseMagnitude =
+          (this.gravityStrength * this.gravityScale * wellMass * particleMass) /
+          (distance * distance);
+
         const forceDirection = displacement.normalize();
-        
-        return forceDirection.multiplyScalar(forceMagnitude);
+        const force = forceDirection.multiplyScalar(baseMagnitude * falloff);
+
+        // Anti-gravity or enhanced gravity handled externally (ParticleSystem) but ensure positive mass used here
+        return force;
     }
     
     calculateLorentzForce(particle, electricField, magneticField) {
@@ -262,6 +280,22 @@ export class PhysicsEngine {
     
     setGravityStrength(strength) {
         this.gravityStrength = Math.max(0, strength);
+    }
+
+    setGravityScale(scale) {
+        this.gravityScale = Math.max(0, scale);
+    }
+
+    // Debug utility to sample gravitational acceleration for a particle
+    debugGravitySample(particle) {
+        if (!this.gravityWells.length) return null;
+        const samples = [];
+        for (const well of this.gravityWells) {
+            const F = this.calculateGravitationalForce(particle, well);
+            const accel = F.clone().divideScalar(Math.max(0.0001, Math.abs(particle.mass)));
+            samples.push({ wellId: well.id, accel: accel.length(), distance: particle.position.distanceTo(well.position) });
+        }
+        return samples;
     }
     
     // Liquid-specific physics modifiers
