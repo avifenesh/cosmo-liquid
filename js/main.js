@@ -14,78 +14,93 @@ import { CelestialBodies } from './core/CelestialBodies.js';
 
 class CosmoLiquid {
     constructor() {
-        this.isInitialized = false;
-        this.isRunning = false;
-        
-        // Core systems
-        this.renderEngine = null;
-        this.physicsEngine = null;
-        this.particleSystem = null;
-        this.inputManager = null;
-        this.performanceMonitor = null;
-        this.audioEngine = null;
-        this.celestialBodies = null;
-        
-        // State
-        this.currentLiquidType = 'plasma';
-        this.mousePressed = false;
-        this.lastFrameTime = 0;
-        
-        this.initialize();
+      this.isInitialized = false;
+      this.isRunning = false;
+
+      // Core systems
+      this.renderEngine = null;
+      this.physicsEngine = null;
+      this.particleSystem = null;
+      this.inputManager = null;
+      this.performanceMonitor = null;
+      this.audioEngine = null;
+      this.celestialBodies = null;
+
+      // State
+      this.currentLiquidType = "plasma";
+      this.mousePressed = false;
+      this.lastFrameTime = 0;
+      // Keep last valid world position for streaming continuity
+      this._lastValidStreamWorldPos = null;
+      // Depth placement for celestial bodies when using right-click
+      this.celestialPlacement = {
+        mode: "cameraDistance", // 'cameraDistance' | 'planeZ'
+        distance: 300, // distance along ray when mode=cameraDistance
+        planeZ: 0, // z plane when mode=planeZ
+      };
+
+      this.initialize();
     }
     
     async initialize() {
         try {
-            await this.updateLoadingProgress(10, 'Detecting capabilities...');
-            
-            // Feature detection
-            if (!this.detectWebGLSupport()) {
-                throw new Error('WebGL is not supported');
-            }
-            
-            await this.updateLoadingProgress(20, 'Initializing render engine...');
-            
-            // Initialize core systems
-            this.renderEngine = new RenderEngine(document.getElementById('canvas-container'));
-            await this.renderEngine.initialize();
-            
-            await this.updateLoadingProgress(40, 'Setting up physics engine...');
-            
-            this.physicsEngine = new PhysicsEngine();
-            this.particleSystem = new ParticleSystem(this.physicsEngine);
-            
-            // Connect particle system to render engine
-            this.renderEngine.setupParticleSystem(this.particleSystem);
-            
-            // Initialize celestial bodies system
-            this.celestialBodies = new CelestialBodies(this.physicsEngine, this.renderEngine);
-            
-            await this.updateLoadingProgress(60, 'Initializing audio system...');
-            
-            this.audioEngine = new AudioEngine();
-            await this.audioEngine.initialize();
-            
-            await this.updateLoadingProgress(80, 'Setting up controls...');
-            
-            this.inputManager = new InputManager(this.renderEngine.canvas);
-            this.performanceMonitor = new PerformanceMonitor();
-            
-            // Setup event listeners
-            this.setupEventListeners();
-            
-            await this.updateLoadingProgress(100, 'Ready to create!');
-            
-            // Hide loading screen
+          await this.updateLoadingProgress(10, "Detecting capabilities...");
+
+          // Feature detection
+          if (!this.detectWebGLSupport()) {
+            throw new Error("WebGL is not supported");
+          }
+
+          await this.updateLoadingProgress(20, "Initializing render engine...");
+
+          // Initialize core systems
+          this.renderEngine = new RenderEngine(
+            document.getElementById("canvas-container")
+          );
+          await this.renderEngine.initialize();
+
+          await this.updateLoadingProgress(40, "Setting up physics engine...");
+
+          this.physicsEngine = new PhysicsEngine();
+          this.particleSystem = new ParticleSystem(this.physicsEngine);
+
+          // Connect particle system to render engine
+          this.renderEngine.setupParticleSystem(this.particleSystem);
+
+          // Connect camera to particle system for frustum culling
+          this.particleSystem.setCamera(this.renderEngine.camera);
+
+          // Initialize celestial bodies system
+          this.celestialBodies = new CelestialBodies(
+            this.physicsEngine,
+            this.renderEngine
+          );
+
+          await this.updateLoadingProgress(60, "Initializing audio system...");
+
+          this.audioEngine = new AudioEngine();
+          await this.audioEngine.initialize();
+
+          await this.updateLoadingProgress(80, "Setting up controls...");
+
+          this.inputManager = new InputManager(this.renderEngine.canvas);
+          this.performanceMonitor = new PerformanceMonitor();
+
+          // Setup event listeners
+          this.setupEventListeners();
+
+          await this.updateLoadingProgress(100, "Ready to create!");
+
+          // Hide loading screen
+          setTimeout(() => {
+            document.getElementById("loading-screen").style.opacity = "0";
             setTimeout(() => {
-                document.getElementById('loading-screen').style.opacity = '0';
-                setTimeout(() => {
-                    document.getElementById('loading-screen').style.display = 'none';
-                }, 1000);
-            }, 500);
-            
-            this.isInitialized = true;
-            this.start();
-            
+              document.getElementById("loading-screen").style.display = "none";
+            }, 1000);
+          }, 500);
+
+          this.isInitialized = true;
+          this.start();
         } catch (error) {
             console.error('Failed to initialize Cosmo Liquid:', error);
             document.querySelector('.loading-text').textContent = 'Initialization failed: ' + error.message;
@@ -115,34 +130,84 @@ class CosmoLiquid {
         // Liquid type selection
         document.querySelectorAll('.liquid-button').forEach(button => {
             button.addEventListener('click', (e) => {
-                // Remove active class from all buttons
-                document.querySelectorAll('.liquid-button').forEach(b => b.classList.remove('active'));
-                
-                // Add active class to clicked button
-                e.target.classList.add('active');
-                
-                // Update current liquid type
-                this.currentLiquidType = e.target.dataset.liquid;
-                
-                // Update particle material for visual differentiation
-                this.renderEngine.updateParticleMaterial(this.currentLiquidType);
-                
-                // Play selection sound
-                this.audioEngine.playLiquidSelectSound(this.currentLiquidType);
-                
-                console.log(`Switched to liquid type: ${this.currentLiquidType}`);
+              // Remove active class from all buttons
+              document
+                .querySelectorAll(".liquid-button")
+                .forEach((b) => b.classList.remove("active"));
+
+              // Add active class to clicked button
+              e.target.classList.add("active");
+
+              // Update current liquid type
+              this.currentLiquidType = e.target.dataset.liquid;
+
+              // Set liquid type for new particles (existing particles keep their type)
+              this.renderEngine.setCurrentLiquidType(this.currentLiquidType);
+
+              // Play selection sound
+              this.audioEngine.playLiquidSelectSound(this.currentLiquidType);
+
+              console.log(`Switched to liquid type: ${this.currentLiquidType}`);
             });
         });
         
         // Keyboard shortcuts for liquid types
         document.addEventListener('keydown', (e) => {
-            const key = parseInt(e.key);
-            if (key >= 1 && key <= 8) {
-                const buttons = document.querySelectorAll('.liquid-button');
-                if (buttons[key - 1]) {
-                    buttons[key - 1].click();
-                }
+          const key = parseInt(e.key);
+          if (key >= 1 && key <= 8) {
+            const buttons = document.querySelectorAll(".liquid-button");
+            if (buttons[key - 1]) {
+              buttons[key - 1].click();
             }
+          }
+
+          // Depth adjustment for celestial placement
+          // '[' decrease, ']' increase distance; 'p' toggle mode
+          if (e.key === "[") {
+            if (this.celestialPlacement.mode === "cameraDistance") {
+              this.celestialPlacement.distance = Math.max(
+                10,
+                this.celestialPlacement.distance - 25
+              );
+              console.log(
+                "[CelestialDepth] distance =>",
+                this.celestialPlacement.distance
+              );
+            } else if (this.celestialPlacement.mode === "planeZ") {
+              this.celestialPlacement.planeZ -= 25;
+              console.log(
+                "[CelestialDepth] planeZ =>",
+                this.celestialPlacement.planeZ
+              );
+            }
+          } else if (e.key === "]") {
+            if (this.celestialPlacement.mode === "cameraDistance") {
+              this.celestialPlacement.distance = Math.min(
+                5000,
+                this.celestialPlacement.distance + 25
+              );
+              console.log(
+                "[CelestialDepth] distance =>",
+                this.celestialPlacement.distance
+              );
+            } else if (this.celestialPlacement.mode === "planeZ") {
+              this.celestialPlacement.planeZ += 25;
+              console.log(
+                "[CelestialDepth] planeZ =>",
+                this.celestialPlacement.planeZ
+              );
+            }
+          } else if (e.key.toLowerCase() === "p") {
+            this.celestialPlacement.mode =
+              this.celestialPlacement.mode === "cameraDistance"
+                ? "planeZ"
+                : "cameraDistance";
+            console.log(
+              "[CelestialDepth] mode =>",
+              this.celestialPlacement.mode,
+              this.celestialPlacement
+            );
+          }
         });
         
         // Celestial body selection
@@ -204,17 +269,28 @@ class CosmoLiquid {
     startParticleStream(position) {
         const worldPosition = this.renderEngine.screenToWorld(position);
         if (!worldPosition) {
-            console.error("Could not determine world position from screen position:", position);
+          // If first attempt fails, abort; otherwise fall back to last valid
+          if (!this._lastValidStreamWorldPos) {
+            console.error(
+              "Could not determine world position from screen position:",
+              position
+            );
             return;
+          }
+          console.warn(
+            "Using last valid stream world position due to horizon fallback"
+          );
         }
+        const usePos = worldPosition || this._lastValidStreamWorldPos.clone();
+        this._lastValidStreamWorldPos = usePos.clone();
 
-        const velocity = this.calculateInitialVelocity(worldPosition);
-        
+        const velocity = this.calculateInitialVelocity(usePos);
+
         this.particleSystem.startStream({
-            position: worldPosition,
-            velocity: velocity,
-            liquidType: this.currentLiquidType,
-            streamRate: 10 // particles per frame
+          position: usePos,
+          velocity: velocity,
+          liquidType: this.currentLiquidType,
+          streamRate: 10, // particles per frame
         });
         
         // Play launch sound
@@ -228,8 +304,18 @@ class CosmoLiquid {
     updateParticleStream(position) {
         const worldPosition = this.renderEngine.screenToWorld(position);
         if (!worldPosition) {
-            return; // Do not update stream if position is invalid
+          if (!this._lastValidStreamWorldPos) return; // nothing to update
+          // Recompute velocity toward stored point (stationary emission)
+          const velocity = this.calculateInitialVelocity(
+            this._lastValidStreamWorldPos
+          );
+          this.particleSystem.updateStream({
+            position: this._lastValidStreamWorldPos,
+            velocity: velocity,
+          });
+          return;
         }
+        this._lastValidStreamWorldPos = worldPosition.clone();
         const velocity = this.calculateInitialVelocity(worldPosition);
         
         this.particleSystem.updateStream({
@@ -259,13 +345,21 @@ class CosmoLiquid {
     }
     
     placeGravityWell(position) {
-        const worldPosition = this.renderEngine.screenToWorld(position);
-        
-        // Place the selected celestial body
-        this.celestialBodies.placeCelestialBody(worldPosition);
-        
-        // Audio feedback
-        this.audioEngine.playGravityWellSound();
+      // Use adjustable depth placement
+      const worldPosition = this.renderEngine.screenToWorld(position, {
+        depthMode:
+          this.celestialPlacement.mode === "cameraDistance"
+            ? "cameraDistance"
+            : "planeZ",
+        distance: this.celestialPlacement.distance,
+        planeZ: this.celestialPlacement.planeZ,
+      });
+
+      // Place the selected celestial body
+      this.celestialBodies.placeCelestialBody(worldPosition);
+
+      // Audio feedback
+      this.audioEngine.playGravityWellSound();
     }
     
     start() {

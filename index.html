@@ -48,14 +48,115 @@
             border: 1px solid rgba(0, 255, 255, 0.3);
         }
         
-        #controls-help {
+        #controls-help, #info-card {
             position: absolute;
             bottom: 20px;
             left: 20px;
+        }
+
+        #info-card {
+            width: 300px;
+            max-height: 55vh;
+            overflow-y: auto;
+            background: rgba(0, 10, 25, 0.65);
+            border: 1px solid rgba(0,255,255,0.35);
+            box-shadow: 0 0 20px rgba(0,255,255,0.2), inset 0 0 25px rgba(0,100,150,0.25);
+            border-radius: 10px;
+            padding: 14px 16px 18px 16px;
+            color: #c8faff;
+            font-size: 12px;
+            line-height: 1.45;
+            font-family: 'Arial', sans-serif;
+            backdrop-filter: blur(6px) saturate(140%);
+            pointer-events: auto;
+        }
+
+        #info-card h1 {
+            margin: 0 0 6px 0;
+            font-size: 16px;
+            letter-spacing: 0.5px;
             color: #00ffff;
-            font-size: 14px;
+            text-shadow: 0 0 8px #00e5ff;
+        }
+
+        #info-card h2 {
+            margin: 14px 0 4px 0;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #66f6ff;
+        }
+
+        #info-card .shortcut {
+            color: #ff00ff;
+            font-weight: bold;
+        }
+
+        #info-card::-webkit-scrollbar {
+            width: 6px;
+        }
+        #info-card::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.25);
+            border-radius: 3px;
+        }
+        #info-card::-webkit-scrollbar-thumb {
+            background: linear-gradient(#00ffff,#ff00ff);
+            border-radius: 3px;
+        }
+
+        .info-close-btn {
+            position: absolute;
+            top: 4px;
+            right: 6px;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(0,255,255,0.4);
+            color: #00ffff;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .info-close-btn:hover {
+            background: rgba(0,255,255,0.15);
+            color: #ff00ff;
+            border-color: #ff00ff;
+        }
+
+        .info-badge {
+            display: inline-block;
+            background: rgba(255,0,255,0.15);
+            border: 1px solid rgba(255,0,255,0.4);
+            padding: 2px 6px;
+            margin: 2px 4px 4px 0;
+            border-radius: 6px;
+            font-size: 10px;
+            color: #ffbbff;
+        }
+
+        .info-fade {
+            position: sticky;
+            bottom: 0;
+            height: 24px;
+            background: linear-gradient(to top, rgba(0,10,25,0.9), rgba(0,10,25,0));
+            margin: -18px -16px -18px -16px;
+            padding: 0 16px 8px 16px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-end;
+            font-size: 10px;
+            color: #66f6ff;
+        }
+
+        #info-toggle-hint {
+            position: absolute;
+            bottom: 8px;
+            left: 330px;
+            font-size: 11px;
+            color: #00ffff;
+            opacity: 0.6;
             text-shadow: 0 0 5px #00ffff;
-            opacity: 0.8;
+            pointer-events: none;
         }
         
         #liquid-selector {
@@ -259,13 +360,52 @@
             </div>
         </div>
         
-        <div id="controls-help">
-            <strong>Controls:</strong><br>
-            Click & Drag: Launch particle stream<br>
-            Right Click: Place gravity well<br>
-            Mouse Wheel: Zoom<br>
-            1-8: Switch liquid types
+        <div id="info-card">
+            <button class="info-close-btn" id="close-info">×</button>
+            <h1>Cosmo Liquid</h1>
+            <div style="font-size:11px;opacity:0.85;margin-bottom:6px;">Interactive cosmic fluid & gravity sandbox. Paint with
+                exotic particle streams and forge miniature star systems.</div>
+            <h2>Primary Controls</h2>
+            <div><span class="shortcut">Click & Drag</span> – Launch particle stream</div>
+            <div><span class="shortcut">Right Click</span> – Place selected celestial body</div>
+            <div><span class="shortcut">1-8</span> – Switch liquid type</div>
+            <div><span class="shortcut">Wheel</span> – Zoom camera</div>
+            <div><span class="shortcut">P</span> – Toggle depth mode (plane / distance)</div>
+            <div><span class="shortcut">[ ]</span> – Adjust celestial depth</div>
+            <div style="margin-top:4px;"><span class="shortcut">Hold & Paint</span> for continuous emission.</div>
+        
+            <h2>Liquid Types</h2>
+            <div>
+                <span class="info-badge">⚡ Plasma</span>
+                <span class="info-badge">💎 Crystal</span>
+                <span class="info-badge">⏰ Temporal</span>
+                <span class="info-badge">☢️ Anti</span>
+                <span class="info-badge">🌀 Quantum</span>
+                <span class="info-badge">🌑 Dark</span>
+                <span class="info-badge">✨ Exotic</span>
+                <span class="info-badge">💡 Photonic</span>
+            </div>
+        
+            <h2>Celestials</h2>
+            <div style="font-size:11px;opacity:0.85;">Place bodies to sculpt gravitational flows. Massive objects bend stream
+                trajectories; dense exotic liquids accent orbital arcs.</div>
+        
+            <h2>Visibility Tips</h2>
+            <div style="font-size:11px;opacity:0.85;">
+                Particles auto-scale with density & pressure; minimum on-screen size prevents vanishing when zooming. Use bloom
+                + overlay smoothing for thicker fluid look.
+            </div>
+        
+            <h2>Depth Modes</h2>
+            <div style="font-size:11px;opacity:0.85;">
+                <strong>PlaneZ:</strong> Projects onto fixed Z plane.<br>
+                <strong>Distance:</strong> Fixed ray distance from camera.<br>
+                Horizon fallback ensures stable placement.
+            </div>
+        
+            <div class="info-fade">Press <span style="color:#ff00ff;font-weight:bold;">I</span> to hide/show</div>
         </div>
+        <div id="info-toggle-hint">Press I to toggle info</div>
 
         <div id="confirmation-message"></div>
     </div>
@@ -316,6 +456,22 @@
             // Simple ready log
             document.addEventListener('DOMContentLoaded', () => {
                 console.log('%c[CosmoLiquid] DOM ready. Initializing...', 'color:#0ff');
+            });
+            // Info card toggle logic
+            const infoCard = document.getElementById('info-card');
+            const closeBtn = document.getElementById('close-info');
+            const hint = document.getElementById('info-toggle-hint');
+            let infoVisible = true;
+            function setInfoVisible(v) {
+                infoVisible = v;
+                infoCard.style.display = v ? 'block' : 'none';
+                hint.style.display = v ? 'none' : 'block';
+            }
+            closeBtn.addEventListener('click', (e) => { e.stopPropagation(); setInfoVisible(false); });
+            window.addEventListener('keydown', (e) => {
+                if (e.key.toLowerCase() === 'i') {
+                    setInfoVisible(!infoVisible);
+                }
             });
         })();
     </script>

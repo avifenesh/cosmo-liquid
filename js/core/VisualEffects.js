@@ -531,6 +531,66 @@ export class VisualEffects {
         this.liquidMaterials.set('darkmatter', this.createDarkMatterMaterial());
         this.liquidMaterials.set('exotic', this.createExoticMaterial());
         this.liquidMaterials.set('photonic', this.createPhotonicMaterial());
+
+        // Create shared soft overlay material (used to visually blend clusters)
+        this.softOverlayMaterial = this.createSoftOverlayMaterial();
+    }
+
+    /**
+     * Creates a soft additive overlay material that renders enlarged gaussian splats
+     * This approximates early-stage screen-space smoothing without extra passes.
+     * @returns {THREE.ShaderMaterial}
+     * @private
+     */
+    createSoftOverlayMaterial() {
+        return new THREE.ShaderMaterial({
+            uniforms: {
+                time: { value: 0.0 },
+                intensity: { value: 0.55 },
+                globalScale: { value: 1.8 }, // multiplies aSize for this overlay only
+                falloff: { value: 1.4 }
+            },
+            vertexShader: `
+                uniform float globalScale;
+                attribute float aSize;
+                varying float vFade;
+                void main() {
+                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    float ps = max(2.0, aSize) * globalScale * (300.0 / -mvPosition.z);
+                    gl_PointSize = ps;
+                    // Slight distance fade to reduce halo popping
+                    vFade = clamp(1.0 - (-mvPosition.z / 1500.0), 0.1, 1.0);
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `,
+            fragmentShader: `
+                uniform float intensity;
+                uniform float falloff;
+                varying float vFade;
+                void main() {
+                    // Radial gaussian falloff
+                    vec2 uv = gl_PointCoord - 0.5;
+                    float d = dot(uv, uv) * 4.0; // 0 at center -> ~1 at edge
+                    float alpha = exp(-d * falloff) * intensity * vFade;
+                    if(alpha < 0.01) discard;
+                    // Soft bluish-white energy tint (can be tinted later via blending)
+                    vec3 col = mix(vec3(0.2,0.4,0.8), vec3(1.0), 1.0 - d);
+                    gl_FragColor = vec4(col * alpha, alpha);
+                }
+            `,
+            transparent: true,
+            depthWrite: false,
+            depthTest: true,
+            blending: THREE.AdditiveBlending
+        });
+    }
+
+    /**
+     * Returns the soft overlay material for optional smoothing layer
+     * @returns {THREE.ShaderMaterial|null}
+     */
+    getSoftOverlayMaterial() {
+        return this.softOverlayMaterial || null;
     }
     
     /**
@@ -540,16 +600,19 @@ export class VisualEffects {
      */
     createPlasmaMaterial() {
         return new THREE.ShaderMaterial({
-            uniforms: {
-                time: { value: 0.0 },
-                pointTexture: { value: this.particleTextures.get('plasma') },
-                size: { value: 4.0 },
-                electricField: { value: new THREE.Vector3(0, 1, 0) }
-            },
-            vertexShader: `
+          uniforms: {
+            time: { value: 0.0 },
+            pointTexture: { value: this.particleTextures.get("plasma") },
+            size: { value: 4.0 }, // acts as global scale multiplier
+            electricField: { value: new THREE.Vector3(0, 1, 0) },
+            minPointSize: { value: 6.0 },
+          },
+          vertexShader: `
                 uniform float time;
                 uniform float size;
+                                uniform float minPointSize;
                 attribute vec3 customColor;
+                attribute float aSize; // per-particle size
                 varying vec3 vColor;
                 varying float vIntensity;
                 
@@ -566,11 +629,15 @@ export class VisualEffects {
                     // Pulsing intensity
                     vIntensity = 0.8 + 0.2 * sin(time * 5.0);
                     
-                    gl_PointSize = size * (300.0 / -mvPosition.z) * vIntensity;
+                    float particleSize = aSize > 0.0 ? aSize : size; // fallback if attribute missing
+                    // Clamp base size to avoid disappearing tiny points
+                    particleSize = max(particleSize, 2.0);
+                    float computed = particleSize * size * (300.0 / -mvPosition.z) * vIntensity;
+                    gl_PointSize = max(minPointSize, computed);
                     gl_Position = projectionMatrix * mvPosition;
                 }
             `,
-            fragmentShader: `
+          fragmentShader: `
                 uniform sampler2D pointTexture;
                 uniform float time;
                 varying vec3 vColor;
@@ -592,9 +659,9 @@ export class VisualEffects {
                     gl_FragColor = vec4(finalColor, texColor.a);
                 }
             `,
-            blending: THREE.AdditiveBlending,
-            transparent: true,
-            vertexColors: true
+          blending: THREE.AdditiveBlending,
+          transparent: true,
+          vertexColors: true,
         });
     }
     
@@ -605,15 +672,18 @@ export class VisualEffects {
      */
     createCrystalMaterial() {
         return new THREE.ShaderMaterial({
-            uniforms: {
-                time: { value: 0.0 },
-                pointTexture: { value: this.particleTextures.get('crystal') },
-                size: { value: 6.0 }
-            },
-            vertexShader: `
+          uniforms: {
+            time: { value: 0.0 },
+            pointTexture: { value: this.particleTextures.get("crystal") },
+            size: { value: 6.0 },
+            minPointSize: { value: 7.0 },
+          },
+          vertexShader: `
                 uniform float time;
                 uniform float size;
+                                uniform float minPointSize;
                 attribute vec3 customColor;
+                attribute float aSize;
                 varying vec3 vColor;
                 varying float vGrowth;
                 
@@ -624,11 +694,14 @@ export class VisualEffects {
                     vGrowth = 0.8 + 0.2 * sin(time * 2.0);
                     
                     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                    gl_PointSize = size * (300.0 / -mvPosition.z) * vGrowth;
+                    float particleSize = aSize > 0.0 ? aSize : size;
+                    particleSize = max(particleSize, 2.5);
+                    float computed = particleSize * size * (300.0 / -mvPosition.z) * vGrowth;
+                    gl_PointSize = max(minPointSize, computed);
                     gl_Position = projectionMatrix * mvPosition;
                 }
             `,
-            fragmentShader: `
+          fragmentShader: `
                 uniform sampler2D pointTexture;
                 varying vec3 vColor;
                 varying float vGrowth;
@@ -647,9 +720,9 @@ export class VisualEffects {
                     gl_FragColor = vec4(finalColor, texColor.a);
                 }
             `,
-            blending: THREE.AdditiveBlending,
-            transparent: true,
-            vertexColors: true
+          blending: THREE.AdditiveBlending,
+          transparent: true,
+          vertexColors: true,
         });
     }
     
@@ -660,15 +733,18 @@ export class VisualEffects {
      */
     createTemporalMaterial() {
         return new THREE.ShaderMaterial({
-            uniforms: {
-                time: { value: 0.0 },
-                pointTexture: { value: this.particleTextures.get('temporal') },
-                size: { value: 5.0 }
-            },
-            vertexShader: `
+          uniforms: {
+            time: { value: 0.0 },
+            pointTexture: { value: this.particleTextures.get("temporal") },
+            size: { value: 5.0 },
+            minPointSize: { value: 6.0 },
+          },
+          vertexShader: `
                 uniform float time;
                 uniform float size;
+                                uniform float minPointSize;
                 attribute vec3 customColor;
+                attribute float aSize;
                 varying vec3 vColor;
                 varying float vTimeDistortion;
                 
@@ -679,11 +755,14 @@ export class VisualEffects {
                     vTimeDistortion = sin(time * 0.5) * 0.5 + 0.5;
                     
                     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                    gl_PointSize = size * (300.0 / -mvPosition.z);
+                    float particleSize = aSize > 0.0 ? aSize : size;
+                    particleSize = max(particleSize, 2.0);
+                    float computed = particleSize * size * (300.0 / -mvPosition.z);
+                    gl_PointSize = max(minPointSize, computed);
                     gl_Position = projectionMatrix * mvPosition;
                 }
             `,
-            fragmentShader: `
+          fragmentShader: `
                 uniform sampler2D pointTexture;
                 uniform float time;
                 varying vec3 vColor;
@@ -705,9 +784,9 @@ export class VisualEffects {
                     gl_FragColor = vec4(finalColor, texColor.a);
                 }
             `,
-            blending: THREE.AdditiveBlending,
-            transparent: true,
-            vertexColors: true
+          blending: THREE.AdditiveBlending,
+          transparent: true,
+          vertexColors: true,
         });
     }
     
@@ -763,13 +842,52 @@ export class VisualEffects {
      * @private
      */
     createBasicLiquidMaterial(type) {
-        return new THREE.PointsMaterial({
-            size: 4,
-            map: this.particleTextures.get(type),
-            blending: THREE.AdditiveBlending,
-            transparent: true,
-            vertexColors: true,
-            sizeAttenuation: true
+        const texture = this.particleTextures.get(type);
+        // Unified shader so per-particle aSize works and we can boost faint types
+        return new THREE.ShaderMaterial({
+          uniforms: {
+            pointTexture: { value: texture },
+            globalSize: { value: 4.0 },
+            brightness: { value: 1.25 },
+            time: { value: 0.0 },
+            minPointSize: { value: 5.5 },
+          },
+          vertexShader: `
+                uniform float globalSize;
+                                uniform float minPointSize;
+                attribute float aSize;
+                attribute vec3 customColor;
+                varying vec3 vColor;
+                varying float vAlpha;
+                void main(){
+                    vColor = customColor;
+                    vec4 mv = modelViewMatrix * vec4(position,1.0);
+                    float baseSize = aSize > 0.0 ? aSize : globalSize;
+                    baseSize = max(baseSize, 2.2); // enforce minimum for visibility
+                    float computed = baseSize * globalSize * (300.0 / -mv.z);
+                    gl_PointSize = max(minPointSize, computed);
+                    vAlpha = 1.0; // could modulate later
+                    gl_Position = projectionMatrix * mv;
+                }
+            `,
+          fragmentShader: `
+                uniform sampler2D pointTexture;
+                uniform float brightness;
+                varying vec3 vColor;
+                varying float vAlpha;
+                void main(){
+                    vec4 tex = texture2D(pointTexture, gl_PointCoord);
+                    if(tex.a < 0.05) discard;
+                    vec3 col = vColor * tex.rgb * brightness;
+                    float alpha = tex.a * vAlpha;
+                    gl_FragColor = vec4(col, alpha);
+                }
+            `,
+          transparent: true,
+          depthWrite: false,
+          depthTest: true,
+          blending: THREE.AdditiveBlending,
+          vertexColors: true,
         });
     }
     
@@ -802,25 +920,51 @@ export class VisualEffects {
      * @param {string} level - Quality level: 'high', 'medium', or 'low'
      */
     setQualityLevel(level) {
-        this.qualityLevel = level;
-        
-        // Adjust effects based on quality
-        const qualitySettings = {
-            high: { particleSize: 6, effectsEnabled: true },
-            medium: { particleSize: 4, effectsEnabled: true },
-            low: { particleSize: 2, effectsEnabled: false }
-        };
-        
-        const settings = qualitySettings[level];
-        
-        // Update material properties
-        for (const [type, material] of this.liquidMaterials) {
-            if (material.uniforms && material.uniforms.size) {
-                material.uniforms.size.value = settings.particleSize;
-            }
+      this.qualityLevel = level;
+
+      // Adjust effects based on quality
+      const qualitySettings = {
+        high: {
+          particleSize: 6,
+          effectsEnabled: true,
+          overlayScale: 1.9,
+          overlayIntensity: 0.6,
+        },
+        medium: {
+          particleSize: 4,
+          effectsEnabled: true,
+          overlayScale: 1.6,
+          overlayIntensity: 0.5,
+        },
+        low: {
+          particleSize: 2,
+          effectsEnabled: false,
+          overlayScale: 1.3,
+          overlayIntensity: 0.4,
+        },
+      };
+
+      const settings = qualitySettings[level];
+
+      // Update material properties
+      for (const [type, material] of this.liquidMaterials) {
+        if (material.uniforms && material.uniforms.size) {
+          material.uniforms.size.value = settings.particleSize;
         }
-        
-        this.effectsEnabled = settings.effectsEnabled;
+      }
+      // Adjust overlay smoothing if present
+      if (this.softOverlayMaterial && this.softOverlayMaterial.uniforms) {
+        if (this.softOverlayMaterial.uniforms.globalScale) {
+          this.softOverlayMaterial.uniforms.globalScale.value =
+            settings.overlayScale;
+        }
+        if (this.softOverlayMaterial.uniforms.intensity) {
+          this.softOverlayMaterial.uniforms.intensity.value =
+            settings.overlayIntensity;
+        }
+      }
+
+      this.effectsEnabled = settings.effectsEnabled;
     }
     
     /**

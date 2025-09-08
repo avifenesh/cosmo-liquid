@@ -87,7 +87,124 @@ self.onmessage = function(e) {
     self.postMessage({ particles: updatedParticles });
 }
 
-// --- PhysicsEngine ---
+// --- Barnes-Hut Octree Node ---
+class OctreeNode {
+    constructor(bounds) {
+        this.bounds = bounds; // { min: Vector3, max: Vector3 }
+        this.centerOfMass = new THREE.Vector3(0, 0, 0);
+        this.totalMass = 0;
+        this.particle = null;
+        this.children = null; // Array of 8 OctreeNode or null
+        this.hasChildren = false;
+    }
+
+    insert(particle) {
+        // If node doesn't contain particle, ignore
+        if (!this.contains(particle.position)) {
+            return;
+        }
+
+        // If node is empty, add particle
+        if (this.totalMass === 0) {
+            this.particle = particle;
+            this.centerOfMass.copy(particle.position);
+            this.totalMass = particle.mass;
+            return;
+        }
+
+        // If node has a particle but no children, subdivide
+        if (!this.hasChildren) {
+            this.subdivide();
+            
+            // Move existing particle to child
+            if (this.particle) {
+                this.insertIntoChildren(this.particle);
+                this.particle = null;
+            }
+        }
+
+        // Insert new particle into children
+        this.insertIntoChildren(particle);
+
+        // Update center of mass
+        const newTotalMass = this.totalMass + particle.mass;
+        this.centerOfMass.multiplyScalar(this.totalMass);
+        this.centerOfMass.add(particle.position.clone().multiplyScalar(particle.mass));
+        this.centerOfMass.divideScalar(newTotalMass);
+        this.totalMass = newTotalMass;
+    }
+
+    insertIntoChildren(particle) {
+        for (let i = 0; i < 8; i++) {
+            this.children[i].insert(particle);
+        }
+    }
+
+    subdivide() {
+        if (this.hasChildren) return;
+
+        const min = this.bounds.min;
+        const max = this.bounds.max;
+        const center = min.clone().add(max).multiplyScalar(0.5);
+
+        this.children = [
+            // Bottom level (z = min.z to center.z)
+            new OctreeNode({min: new THREE.Vector3(min.x, min.y, min.z), max: new THREE.Vector3(center.x, center.y, center.z)}),
+            new OctreeNode({min: new THREE.Vector3(center.x, min.y, min.z), max: new THREE.Vector3(max.x, center.y, center.z)}),
+            new OctreeNode({min: new THREE.Vector3(min.x, center.y, min.z), max: new THREE.Vector3(center.x, max.y, center.z)}),
+            new OctreeNode({min: new THREE.Vector3(center.x, center.y, min.z), max: new THREE.Vector3(max.x, max.y, center.z)}),
+            // Top level (z = center.z to max.z)
+            new OctreeNode({min: new THREE.Vector3(min.x, min.y, center.z), max: new THREE.Vector3(center.x, center.y, max.z)}),
+            new OctreeNode({min: new THREE.Vector3(center.x, min.y, center.z), max: new THREE.Vector3(max.x, center.y, max.z)}),
+            new OctreeNode({min: new THREE.Vector3(min.x, center.y, center.z), max: new THREE.Vector3(center.x, max.y, max.z)}),
+            new OctreeNode({min: new THREE.Vector3(center.x, center.y, center.z), max: new THREE.Vector3(max.x, max.y, max.z)})
+        ];
+
+        this.hasChildren = true;
+    }
+
+    contains(position) {
+        return position.x >= this.bounds.min.x && position.x <= this.bounds.max.x &&
+               position.y >= this.bounds.min.y && position.y <= this.bounds.max.y &&
+               position.z >= this.bounds.min.z && position.z <= this.bounds.max.z;
+    }
+
+    calculateForce(particle, theta = 0.5) {
+        if (this.totalMass === 0) {
+            return new THREE.Vector3(0, 0, 0);
+        }
+
+        const displacement = new THREE.Vector3().subVectors(this.centerOfMass, particle.position);
+        const distance = displacement.length();
+
+        if (distance === 0) {
+            return new THREE.Vector3(0, 0, 0);
+        }
+
+        // If this is a leaf node with the same particle, ignore
+        if (this.particle === particle) {
+            return new THREE.Vector3(0, 0, 0);
+        }
+
+        const size = this.bounds.max.x - this.bounds.min.x; // Assuming cubic bounds
+        
+        // Barnes-Hut approximation: if s/d < theta, treat as single body
+        if (!this.hasChildren || (size / distance) < theta) {
+            // Calculate gravitational force directly
+            const forceMagnitude = (1000.0 * this.totalMass * particle.mass) / (distance * distance);
+            return displacement.normalize().multiplyScalar(forceMagnitude);
+        }
+
+        // Otherwise, sum forces from children
+        let totalForce = new THREE.Vector3(0, 0, 0);
+        for (let i = 0; i < 8; i++) {
+            totalForce.add(this.children[i].calculateForce(particle, theta));
+        }
+        return totalForce;
+    }
+}
+
+// --- PhysicsEngine with Barnes-Hut optimization ---
 class PhysicsEngine {
     constructor() {
         this.G = 6.67430e-11;
@@ -102,6 +219,14 @@ class PhysicsEngine {
         this.gridSize = 100;
         this.forces = new Map();
         this.isInitialized = true;
+        
+        // Barnes-Hut octree
+        this.octree = null;
+        this.theta = 0.5; // Barnes-Hut approximation parameter
+        this.octreeBounds = {
+            min: new THREE.Vector3(-2000, -2000, -2000),
+            max: new THREE.Vector3(2000, 2000, 2000)
+        };
     }
 
     update(deltaTime) {
@@ -129,6 +254,26 @@ class PhysicsEngine {
 
     removeGravityWell(id) {
         this.gravityWells = this.gravityWells.filter(well => well.id !== id);
+    }
+
+    // Build Barnes-Hut octree for particle-particle gravity
+    buildOctree(particles) {
+        this.octree = new OctreeNode(this.octreeBounds);
+        
+        // Insert all particles into octree
+        for (const particle of particles) {
+            if (particle.active) {
+                this.octree.insert(particle);
+            }
+        }
+    }
+
+    // Calculate gravitational force using Barnes-Hut approximation
+    calculateParticleGravityForce(particle, particles) {
+        if (!this.octree) return new THREE.Vector3(0, 0, 0);
+        
+        // Use Barnes-Hut octree for O(n log n) calculation
+        return this.octree.calculateForce(particle, this.theta);
     }
 
     calculateGravitationalForce(particle, gravityWell) {
@@ -242,18 +387,40 @@ class ParticleSystem {
     }
 
     updateParticles(deltaTime) {
+        const activeParticlesArray = Array.from(this.activeParticles);
+        
+        // Build Barnes-Hut octree for particle-particle gravity (O(n log n))
+        this.physicsEngine.buildOctree(activeParticlesArray);
+        
         const gravityWells = this.physicsEngine.gravityWells;
+        
         for (const particle of this.activeParticles) {
             if (!particle.active) continue;
+            
             particle.age += deltaTime;
             const distanceFromOrigin = new THREE.Vector3(particle.position.x, particle.position.y, particle.position.z).length();
             if (distanceFromOrigin > 5000) {
                 particle.active = false;
                 continue;
             }
+            
             const totalForce = new THREE.Vector3(0, 0, 0);
+            
+            // SPH fluid forces
             const sphForces = this.fluidDynamics.getSPHForces(particle);
             totalForce.add(sphForces);
+            
+            // Particle-particle gravity using Barnes-Hut (HUGE performance improvement)
+            const particleGravityForce = this.physicsEngine.calculateParticleGravityForce(particle, activeParticlesArray);
+            if (particle.liquidType === 'antimatter' || particle.liquidType === 'exotic') {
+                particleGravityForce.multiplyScalar(-1); // Anti-gravity
+            }
+            if (particle.liquidType === 'darkmatter') {
+                particleGravityForce.multiplyScalar(2); // Enhanced gravity
+            }
+            totalForce.add(particleGravityForce);
+            
+            // Gravity wells (external gravity sources)
             for (const well of gravityWells) {
                 const gravityForce = this.physicsEngine.calculateGravitationalForce(particle, well);
                 if (particle.liquidType === 'antimatter' || particle.liquidType === 'exotic') {
@@ -264,6 +431,7 @@ class ParticleSystem {
                 }
                 totalForce.add(gravityForce);
             }
+            
             this.physicsEngine.verletIntegration(particle, totalForce, deltaTime);
             this.applyConstraints(particle);
         }

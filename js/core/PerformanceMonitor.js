@@ -383,6 +383,7 @@ export class PerformanceMonitor {
     notifyQualityChange() {
         const settings = this.getCurrentQualitySettings();
         
+        // Notify registered callbacks
         for (const callback of this.qualityChangeCallbacks) {
             try {
                 callback(this.qualityLevel, settings);
@@ -390,6 +391,18 @@ export class PerformanceMonitor {
                 console.error('Error in quality change callback:', error);
             }
         }
+        
+        // Dispatch global event for particle system and other components
+        const event = new CustomEvent('performanceQualityChanged', {
+            detail: {
+                quality: this.qualityLevel,
+                settings: settings,
+                fps: this.fps,
+                memoryUsage: this.memoryUsage
+            }
+        });
+        
+        window.dispatchEvent(event);
     }
     
     onQualityChange(callback) {

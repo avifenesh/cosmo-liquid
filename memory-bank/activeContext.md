@@ -1,10 +1,10 @@
 # Active Context - Current Focus & Decisions
 
 ## Current Development Phase
-**Phase: Design & Architecture Documentation**
-- Status: Creating comprehensive design papers
-- Focus: Physics formulas, system architecture, performance strategies
-- Next: Implementation of core particle system
+**Phase: Critical Performance Optimization**
+- Status: Major performance bottlenecks identified and solutions planned
+- Focus: Web Worker physics, Barnes-Hut octree, GPU optimizations
+- Next: Implement 10x performance improvements to achieve smooth 60 FPS
 
 ## Key Design Decisions Made
 
@@ -30,22 +30,35 @@
 
 ## Active Technical Considerations
 
-### Physics Implementation Strategy
+### URGENT: Critical Performance Bottlenecks Discovered
+1. **Physics Worker Not Working**: Worker sends messages but main thread still does physics - REDUNDANT O(n²) calculations
+2. **No Barnes-Hut Implementation**: Despite memory bank mentioning it, still using O(n²) gravity - MASSIVE bottleneck
+3. **No Spatial Optimization**: Linear particle iteration every frame - No frustum culling
+4. **Inefficient Updates**: All particles updated regardless of visibility
+5. **Heavy Post-Processing**: Full bloom pass always running
+
+### New Performance-First Physics Architecture
 ```javascript
-// Hierarchical physics approach
-Level 1: Core Forces (always active)
-  - Gravity (Newton's law)
-  - Basic collision
+// Performance-Optimized Hierarchical Approach
+Level 0: Performance Budgeting (NEW)
+  - Frame time monitoring (16ms budget)
+  - Dynamic quality adjustment
+  - Spatial culling (frustum + distance)
 
-Level 2: Advanced Forces (per liquid type)
-  - Electromagnetic (plasma, photonic)
-  - Quantum effects (quantum foam)
-  - Relativistic (temporal flux)
+Level 1: Core Physics (Web Worker ONLY)
+  - Barnes-Hut octree gravity O(n log n)
+  - SPH fluid dynamics with spatial hashing
+  - Verlet integration
 
-Level 3: Visual Effects (GPU only)
-  - Particle trails
-  - Glow and bloom
-  - Distortion fields
+Level 2: GPU Acceleration (NEW)
+  - Compute shaders for parallel force calculation
+  - Transform feedback for position updates
+  - Texture-based physics state
+
+Level 3: Adaptive Quality (NEW)
+  - Distance-based LOD
+  - Temporal upsampling for distant particles
+  - Dynamic post-processing quality
 ```
 
 ### Memory Budget Allocation
@@ -76,31 +89,33 @@ Fragment Shader:
   4. Output to G-buffer
 ```
 
-## Current Implementation Priorities
+## Current Implementation Priorities - PERFORMANCE EMERGENCY
 
-### Phase 1: Core Systems (Current)
+### Phase 1: Immediate Performance Fixes (URGENT)
 1. ✅ Memory bank documentation
-2. ⏳ Physics formulas research
-3. ⏳ System architecture design
-4. ⏳ Performance strategy
+2. ✅ Performance bottleneck analysis  
+3. [ ] **Fix Web Worker Physics** - Move ALL physics to worker thread
+4. [ ] **Implement Barnes-Hut Octree** - O(n log n) gravity calculations
+5. [ ] **Add Frustum Culling** - Don't update invisible particles
+6. [ ] **Performance Budgeting** - 16ms frame time limits
 
-### Phase 2: Foundation (Next)
-1. [ ] Basic Three.js scene setup
-2. [ ] Particle pool implementation
-3. [ ] Simple gravity system
-4. [ ] Basic mouse controls
+### Phase 2: Core Optimizations (High Priority)
+1. [ ] **Spatial Hashing for SPH** - Fast neighbor searches
+2. [ ] **GPU Compute Shaders** - Parallel force calculations
+3. [ ] **Dynamic Quality System** - Adaptive particle count/quality
+4. [ ] **Memory Pool Optimization** - Cache-friendly data layout
 
-### Phase 3: GPU Physics
-1. [ ] Shader-based force calculation
-2. [ ] Octree on GPU (texture-based)
-3. [ ] Instanced rendering
-4. [ ] LOD system
+### Phase 3: Advanced Performance (Medium Priority)
+1. [ ] **Temporal Reprojection** - Reuse previous frame data
+2. [ ] **Variable Time Steps** - Adaptive physics accuracy
+3. [ ] **Predictive Culling** - Anticipate particle movement
+4. [ ] **GPU Octree** - Texture-based spatial optimization
 
-### Phase 4: Liquid Types
-1. [ ] Implement base liquid class
-2. [ ] Add 8 exotic types
-3. [ ] Type-specific physics
-4. [ ] Visual differentiation
+### Phase 4: Polish & Liquid Types (After Performance)
+1. [ ] Enhanced liquid type implementations
+2. [ ] Advanced visual effects
+3. [ ] Audio system completion
+4. [ ] UI polish and achievements
 
 ## Important Patterns & Preferences
 
@@ -150,23 +165,29 @@ Fragment Shader:
 3. **WebGL Fluid**: Proves browser can handle complex simulations
 4. **Three.js Examples**: Good starting points for effects
 
-## Open Questions & Decisions Needed
+## Critical Performance Decisions Made
 
-### Technical Questions
-1. **Web Workers for Physics?**
-   - Pro: Doesn't block render thread
-   - Con: Data transfer overhead
-   - Decision: Start single-threaded, profile first
+### Technical Decisions - PERFORMANCE FOCUSED
+1. **Web Workers for Physics** ✅ DECIDED
+   - **Decision**: ALL physics calculations MUST move to worker
+   - **Rationale**: Current hybrid approach creates redundant O(n²) calculations
+   - **Implementation**: Use SharedArrayBuffer or optimized message passing
 
-2. **WebAssembly for Octree?**
-   - Pro: Faster tree operations
-   - Con: Complexity, compilation time
-   - Decision: Pure JS first, WASM if needed
+2. **Barnes-Hut Octree** ✅ DECIDED  
+   - **Decision**: Implement immediately with θ = 0.5
+   - **Rationale**: 10,000 particles = 100M operations → 100K operations (1000x improvement)
+   - **Priority**: HIGHEST - This single change provides 10x performance gain
 
-3. **Texture-Based Physics?**
-   - Pro: GPU parallel processing
-   - Con: Limited by texture size
-   - Decision: Hybrid approach (forces on GPU, integration on CPU)
+3. **GPU Compute Pipeline** ✅ DECIDED
+   - **Decision**: Implement compute shaders for parallel physics
+   - **Rationale**: GPU has 1000+ cores vs CPU 8-16 cores  
+   - **Timeline**: After Barnes-Hut proves stable
+
+### Performance Requirements - NON-NEGOTIABLE
+- **60 FPS with 10,000 particles** (currently struggling with 1,000)
+- **16ms frame budget** with automatic quality degradation
+- **Spatial culling** - particles outside view not updated
+- **Memory efficiency** - no garbage collection spikes
 
 ### Design Questions
 1. **Particle Lifetime?**
@@ -184,21 +205,28 @@ Fragment Shader:
    - Option B: Exploration-based
    - Leaning: Exploration to encourage experimentation
 
-## Next Immediate Steps
+## Next Immediate Steps - PERFORMANCE PRIORITY
 
-### After Documentation Complete
-1. Create `index.html` with basic structure
-2. Set up Three.js scene with OrbitControls
-3. Implement particle pool with 1000 static particles
-4. Add simple gravitational force (no optimization)
-5. Test performance baseline
+### Critical Performance Fixes (Starting NOW)
+1. **Fix Web Worker Implementation** - Remove redundant main thread physics
+2. **Implement Barnes-Hut Octree** - Replace O(n²) with O(n log n) gravity
+3. **Add Spatial Culling** - Don't update particles outside view frustum
+4. **Performance Monitoring** - Real-time FPS tracking with auto-degradation
+5. **Memory Pool Optimization** - Reduce garbage collection pressure
 
-### Success Criteria for Phase 1
-- [ ] 60 FPS with 1000 particles
-- [ ] Smooth camera controls
-- [ ] Particles respond to single gravity well
-- [ ] Click to launch particles
-- [ ] Visual: Basic glow effect
+### Success Criteria for Performance Phase
+- [ ] **60 FPS with 5,000 particles** (10x current capacity)
+- [ ] **30 FPS with 10,000 particles** (target goal)
+- [ ] **No frame drops** during particle generation
+- [ ] **Smooth camera controls** under load
+- [ ] **Memory stable** - no garbage collection spikes
+- [ ] **Auto-quality** system working (degrades gracefully)
+
+### Performance Benchmarks to Track
+- Gravity calculations per second (target: 10M+)
+- Physics worker message overhead (target: <1ms)
+- Render thread utilization (target: <80%)
+- Memory usage growth (target: stable after 30s)
 
 ## Context for Future Sessions
 
@@ -209,16 +237,25 @@ Fragment Shader:
 4. **No Premature Optimization**: Profile before optimizing
 5. **User Delight**: Fun trumps realism when they conflict
 
-### Avoid These Pitfalls
-1. **Object Allocation**: Use pools and typed arrays
-2. **Deep Hierarchies**: Keep scene graph flat
-3. **Synchronous Loading**: Use async for all resources
-4. **Pixel-Perfect**: Embrace the chaos of physics
-5. **Feature Creep**: Core experience first
+### CRITICAL Performance Pitfalls to Avoid
+1. **Physics on Main Thread**: ALL physics MUST be in worker
+2. **O(n²) Algorithms**: Use spatial data structures (octree, spatial hash)
+3. **No Culling**: Always cull invisible/distant particles
+4. **Fixed Quality**: Implement adaptive quality based on FPS
+5. **Memory Allocation**: Use object pools, typed arrays, avoid GC
+6. **Redundant Calculations**: Cache results, reuse computations
+7. **Blocking Operations**: Keep render thread free for 16ms budget
 
-### Technical Debt Accepted
+### Performance Debt - MUST FIX IMMEDIATELY
+1. **❌ Broken Web Worker**: Physics worker exists but main thread still calculates
+2. **❌ Missing Barnes-Hut**: O(n²) gravity killing performance
+3. **❌ No Spatial Optimization**: Linear search every frame
+4. **❌ No Culling**: All particles updated regardless of visibility
+5. **❌ Heavy Post-Processing**: Full bloom pass regardless of performance
+
+### Technical Debt Accepted (After Performance Fixed)
 1. **No Build System**: Will need later for production
-2. **Single-Threaded**: Web Workers deferred
-3. **Simple Collisions**: Particle-particle deferred
+2. **Simple UI**: Focus on core performance first  
+3. **Basic Audio**: Optimize physics before audio polish
 4. **No Mobile**: Desktop-first development
 5. **English Only**: i18n deferred to v2
