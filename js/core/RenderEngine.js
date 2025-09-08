@@ -66,6 +66,8 @@ export class RenderEngine {
         // Particle rendering
         /** @type {THREE.Points|null} Main particle mesh for rendering */
         this.particleMesh = null;
+        /** @type {ParticleSystem|null} Reference to particle system for material updates */
+        this.particleSystemRef = null;
         
         // Post-processing
         /** @type {EffectComposer|null} Post-processing composer */
@@ -249,21 +251,38 @@ export class RenderEngine {
      * @returns {THREE.Points} The created particle points mesh
      */
     setupParticleSystem(particleSystem) {
-        // Create particle material for point rendering
-        const particleMaterial = new THREE.PointsMaterial({
-            size: 4,
-            vertexColors: true,
-            transparent: true,
-            blending: THREE.AdditiveBlending,
-            sizeAttenuation: true
-        });
+        // Store reference to particle system for material switching
+        this.particleSystemRef = particleSystem;
+
+        // Start with plasma material as default
+        const defaultMaterial = this.visualEffects.getLiquidMaterial('plasma');
 
         // Create Points mesh from particle geometry
-        this.particleMesh = new THREE.Points(particleSystem.particleGeometry, particleMaterial);
+        this.particleMesh = new THREE.Points(particleSystem.particleGeometry, defaultMaterial);
         this.scene.add(this.particleMesh);
 
         console.log('Particle rendering system setup complete');
         return this.particleMesh;
+    }
+    
+    /**
+     * Updates the particle material based on the currently selected liquid type
+     * @param {string} liquidType - The type of liquid to render particles as
+     */
+    updateParticleMaterial(liquidType) {
+        if (this.particleMesh && this.visualEffects) {
+            const newMaterial = this.visualEffects.getLiquidMaterial(liquidType);
+            
+            // Dispose old material to prevent memory leaks
+            if (this.particleMesh.material && this.particleMesh.material.dispose) {
+                this.particleMesh.material.dispose();
+            }
+            
+            this.particleMesh.material = newMaterial;
+            this.currentLiquidType = liquidType;
+            
+            console.log(`Updated particle material to: ${liquidType}`);
+        }
     }
     
     /**

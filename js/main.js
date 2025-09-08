@@ -124,6 +124,9 @@ class CosmoLiquid {
                 // Update current liquid type
                 this.currentLiquidType = e.target.dataset.liquid;
                 
+                // Update particle material for visual differentiation
+                this.renderEngine.updateParticleMaterial(this.currentLiquidType);
+                
                 // Play selection sound
                 this.audioEngine.playLiquidSelectSound(this.currentLiquidType);
                 

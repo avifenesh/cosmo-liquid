@@ -562,15 +562,13 @@ export class CelestialBodies {
             break;
 
           case "Jupiter":
-            // Jupiter - realistic banded atmosphere with Great Red Spot
-            const jupiterTexture = textureLoader.load('js/textures/jupiter_map.jpg');
+            // Jupiter - realistic banded atmosphere with Great Red Spot (procedural)
             material = new THREE.ShaderMaterial({
               uniforms: {
                 time: { value: 0.0 },
                 sunDirection: {
                   value: new THREE.Vector3(1, 0.5, 0.5).normalize(),
                 },
-                jupiterTexture: { value: jupiterTexture },
               },
               vertexShader: `
                         varying vec2 vUv;
@@ -592,8 +590,25 @@ export class CelestialBodies {
                         varying vec3 vNormal;
                         varying vec3 vPosition;
                         
+                        // Procedural Jupiter bands
+                        float bands(vec2 uv) {
+                            float y = uv.y * 10.0;
+                            return 0.5 + 0.3 * sin(y) + 0.1 * sin(y * 3.0) + 0.05 * sin(y * 7.0);
+                        }
+                        
                         void main() {
-                            vec3 baseColor = texture2D(jupiterTexture, vUv).rgb;
+                            // Procedural Jupiter bands
+                            float bandPattern = bands(vUv);
+                            vec3 darkBand = vec3(0.6, 0.4, 0.2);
+                            vec3 lightBand = vec3(0.9, 0.7, 0.4);
+                            vec3 baseColor = mix(darkBand, lightBand, bandPattern);
+                            
+                            // Great Red Spot
+                            vec2 spotCenter = vec2(0.3, 0.6);
+                            float spotDist = distance(vUv, spotCenter);
+                            if (spotDist < 0.08) {
+                                baseColor = mix(baseColor, vec3(0.8, 0.3, 0.2), 1.0 - spotDist/0.08);
+                            }
                             
                             // Lighting
                             float NdotL = max(dot(vNormal, sunDirection), 0.0);
@@ -614,15 +629,13 @@ export class CelestialBodies {
             break;
 
           case "Mars":
-            // Mars - realistic red planet with dust and polar caps
-            const marsTexture = textureLoader.load('js/textures/mars_map.jpg');
+            // Mars - realistic red planet with dust and polar caps (procedural)
             material = new THREE.ShaderMaterial({
               uniforms: {
                 time: { value: 0.0 },
                 sunDirection: {
                   value: new THREE.Vector3(1, 0.5, 0.5).normalize(),
                 },
-                marsTexture: { value: marsTexture },
               },
               vertexShader: `
                         varying vec3 vNormal;
@@ -644,8 +657,23 @@ export class CelestialBodies {
                         varying vec2 vUv;
                         varying vec3 vPosition;
                         
+                        // Simple noise function
+                        float noise(vec2 p) {
+                            return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+                        }
+                        
                         void main() {
-                            vec3 baseColor = texture2D(marsTexture, vUv).rgb;
+                            // Procedural Mars surface
+                            vec3 desertColor = vec3(0.8, 0.4, 0.2);
+                            vec3 rockColor = vec3(0.6, 0.3, 0.15);
+                            
+                            float surfaceNoise = noise(vUv * 20.0);
+                            vec3 baseColor = mix(desertColor, rockColor, surfaceNoise);
+                            
+                            // Polar caps
+                            if (vUv.y > 0.85 || vUv.y < 0.15) {
+                                baseColor = mix(baseColor, vec3(0.9, 0.9, 0.8), 0.6);
+                            }
                             
                             // Lighting
                             float NdotL = max(dot(vNormal, sunDirection), 0.0);
@@ -667,20 +695,13 @@ export class CelestialBodies {
             break;
 
           case "Earth":
-            // Earth - realistic with continents, oceans, and clouds
-            const earthTexture = textureLoader.load('js/textures/earth_daymap.jpg');
-            const earthNormalMap = textureLoader.load('js/textures/earth_normal_map.png');
-            const earthCloudMap = textureLoader.load('js/textures/earth_clouds.jpg');
-
+            // Earth - realistic with continents, oceans, and clouds (procedural)
             material = new THREE.ShaderMaterial({
               uniforms: {
                 time: { value: 0.0 },
                 sunDirection: {
                   value: new THREE.Vector3(1, 0.5, 0.5).normalize(),
                 },
-                earthTexture: { value: earthTexture },
-                earthNormalMap: { value: earthNormalMap },
-                earthCloudMap: { value: earthCloudMap },
               },
               vertexShader: `
                         varying vec3 vNormal;
@@ -704,13 +725,50 @@ export class CelestialBodies {
                         varying vec2 vUv;
                         varying vec3 vPosition;
                         
+                        // Simple noise function for procedural textures
+                        float noise(vec2 p) {
+                            return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+                        }
+                        
+                        // Fractal noise for continents
+                        float fbm(vec2 p) {
+                            float value = 0.0;
+                            float amplitude = 0.5;
+                            for(int i = 0; i < 3; i++) {
+                                value += amplitude * noise(p);
+                                p *= 2.0;
+                                amplitude *= 0.5;
+                            }
+                            return value;
+                        }
+                        
                         void main() {
-                            vec3 normal = texture2D(earthNormalMap, vUv).rgb * 2.0 - 1.0;
-                            vec3 baseColor = texture2D(earthTexture, vUv).rgb;
-                            float clouds = texture2D(earthCloudMap, vUv).r;
-
+                            // Procedural Earth surface
+                            vec3 oceanColor = vec3(0.1, 0.3, 0.6);
+                            vec3 landColor = vec3(0.4, 0.6, 0.2);
+                            vec3 desertColor = vec3(0.8, 0.7, 0.4);
+                            vec3 mountainColor = vec3(0.6, 0.5, 0.4);
+                            
+                            // Generate continents
+                            float continents = fbm(vUv * 4.0);
+                            float isLand = smoothstep(0.4, 0.6, continents);
+                            
+                            // Generate elevation for land areas
+                            float elevation = fbm(vUv * 8.0) * isLand;
+                            
+                            // Mix terrain colors
+                            vec3 terrainColor = mix(landColor, desertColor, smoothstep(0.3, 0.8, abs(vUv.y - 0.5) * 2.0));
+                            terrainColor = mix(terrainColor, mountainColor, smoothstep(0.6, 0.8, elevation));
+                            
+                            // Ocean vs land
+                            vec3 baseColor = mix(oceanColor, terrainColor, isLand);
+                            
+                            // Clouds
+                            float clouds = fbm(vUv * 6.0 + vec2(time * 0.1, 0.0));
+                            clouds = smoothstep(0.4, 0.7, clouds);
+                            
                             // Lighting
-                            float NdotL = max(dot(normal, sunDirection), 0.0);
+                            float NdotL = max(dot(vNormal, sunDirection), 0.0);
                             float ambient = 0.3;
                             float diffuse = NdotL * 0.7;
                             
@@ -720,14 +778,14 @@ export class CelestialBodies {
                             vec3 atmosphereColor = vec3(0.3, 0.5, 1.0) * rim * 0.5;
                             
                             vec3 finalColor = baseColor * (ambient + diffuse) + atmosphereColor;
-                            finalColor = mix(finalColor, vec3(1.0), clouds * 0.5);
+                            finalColor = mix(finalColor, vec3(1.0), clouds * 0.3);
                             
-                            // Add specular for water
-                            if (baseColor.b > baseColor.g) {
+                            // Add specular for water (oceans)
+                            if (isLand < 0.5) {
                                 vec3 viewDir = normalize(cameraPosition - vPosition);
-                                vec3 reflectDir = reflect(-sunDirection, normal);
+                                vec3 reflectDir = reflect(-sunDirection, vNormal);
                                 float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
-                                finalColor += vec3(1.0) * spec * 0.5;
+                                finalColor += vec3(1.0) * spec * 0.3;
                             }
                             
                             gl_FragColor = vec4(finalColor, 1.0);
