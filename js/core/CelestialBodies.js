@@ -695,7 +695,7 @@ export class CelestialBodies {
             break;
 
           case "Earth":
-            // Earth - realistic with continents, oceans, and clouds (procedural)
+            // Earth - magnificent realistic shader with NASA-quality techniques
             material = new THREE.ShaderMaterial({
               uniforms: {
                 time: { value: 0.0 },
@@ -707,34 +707,52 @@ export class CelestialBodies {
                         varying vec3 vNormal;
                         varying vec2 vUv;
                         varying vec3 vPosition;
+                        varying vec3 vViewPosition;
+                        varying vec3 vWorldNormal;
                         
                         void main() {
                             vUv = uv;
                             vNormal = normalize(normalMatrix * normal);
+                            vWorldNormal = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
                             vPosition = (modelMatrix * vec4(position, 1.0)).xyz;
-                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                            
+                            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                            vViewPosition = -mvPosition.xyz;
+                            
+                            gl_Position = projectionMatrix * mvPosition;
                         }
                     `,
               fragmentShader: `
                         uniform float time;
                         uniform vec3 sunDirection;
-                        uniform sampler2D earthTexture;
-                        uniform sampler2D earthNormalMap;
-                        uniform sampler2D earthCloudMap;
                         varying vec3 vNormal;
                         varying vec2 vUv;
                         varying vec3 vPosition;
+                        varying vec3 vViewPosition;
+                        varying vec3 vWorldNormal;
                         
-                        // Simple noise function for procedural textures
-                        float noise(vec2 p) {
-                            return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+                        // High-quality noise functions
+                        float hash(vec2 p) {
+                            p = fract(p * vec2(123.34, 456.21));
+                            p += dot(p, p + 45.32);
+                            return fract(p.x * p.y);
                         }
                         
-                        // Fractal noise for continents
+                        float noise(vec2 p) {
+                            vec2 i = floor(p);
+                            vec2 f = fract(p);
+                            float a = hash(i);
+                            float b = hash(i + vec2(1.0, 0.0));
+                            float c = hash(i + vec2(0.0, 1.0));
+                            float d = hash(i + vec2(1.0, 1.0));
+                            vec2 u = f * f * (3.0 - 2.0 * f);
+                            return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+                        }
+                        
                         float fbm(vec2 p) {
                             float value = 0.0;
                             float amplitude = 0.5;
-                            for(int i = 0; i < 3; i++) {
+                            for(int i = 0; i < 5; i++) {
                                 value += amplitude * noise(p);
                                 p *= 2.0;
                                 amplitude *= 0.5;
@@ -743,50 +761,82 @@ export class CelestialBodies {
                         }
                         
                         void main() {
-                            // Procedural Earth surface
-                            vec3 oceanColor = vec3(0.1, 0.3, 0.6);
-                            vec3 landColor = vec3(0.4, 0.6, 0.2);
-                            vec3 desertColor = vec3(0.8, 0.7, 0.4);
-                            vec3 mountainColor = vec3(0.6, 0.5, 0.4);
+                            // Magnificent Earth color palette
+                            vec3 deepOcean = vec3(0.02, 0.12, 0.4);
+                            vec3 shallowOcean = vec3(0.1, 0.4, 0.7);
+                            vec3 coastalWater = vec3(0.3, 0.6, 0.9);
+                            vec3 beaches = vec3(0.9, 0.8, 0.6);
+                            vec3 grasslands = vec3(0.3, 0.7, 0.2);
+                            vec3 forests = vec3(0.1, 0.4, 0.05);
+                            vec3 deserts = vec3(0.8, 0.7, 0.4);
+                            vec3 mountains = vec3(0.5, 0.4, 0.3);
+                            vec3 snow = vec3(0.95, 0.95, 1.0);
+                            vec3 cityLights = vec3(1.0, 0.9, 0.7);
                             
-                            // Generate continents
-                            float continents = fbm(vUv * 4.0);
-                            float isLand = smoothstep(0.4, 0.6, continents);
+                            // Generate sophisticated terrain
+                            float continents = fbm(vUv * 3.0);
+                            float elevation = fbm(vUv * 8.0);
+                            float coastlines = fbm(vUv * 16.0);
                             
-                            // Generate elevation for land areas
-                            float elevation = fbm(vUv * 8.0) * isLand;
+                            // Determine land vs ocean
+                            float landMass = smoothstep(0.35, 0.65, continents + elevation * 0.2);
+                            float oceanDepth = smoothstep(0.0, 0.5, 1.0 - landMass);
                             
-                            // Mix terrain colors
-                            vec3 terrainColor = mix(landColor, desertColor, smoothstep(0.3, 0.8, abs(vUv.y - 0.5) * 2.0));
-                            terrainColor = mix(terrainColor, mountainColor, smoothstep(0.6, 0.8, elevation));
+                            // Climate zones based on latitude
+                            float latitude = abs(vUv.y - 0.5) * 2.0;
+                            float tropical = 1.0 - smoothstep(0.0, 0.4, latitude);
+                            float polar = smoothstep(0.7, 1.0, latitude);
                             
-                            // Ocean vs land
-                            vec3 baseColor = mix(oceanColor, terrainColor, isLand);
+                            // Biome mixing
+                            vec3 landColor = grasslands;
+                            landColor = mix(landColor, forests, tropical * smoothstep(0.4, 0.8, elevation));
+                            landColor = mix(landColor, deserts, tropical * smoothstep(0.2, 0.5, 1.0 - elevation));
+                            landColor = mix(landColor, snow, polar);
+                            landColor = mix(landColor, mountains, smoothstep(0.7, 0.9, elevation));
                             
-                            // Clouds
-                            float clouds = fbm(vUv * 6.0 + vec2(time * 0.1, 0.0));
-                            clouds = smoothstep(0.4, 0.7, clouds);
+                            // Ocean colors with depth variation
+                            vec3 oceanColor = mix(coastalWater, deepOcean, oceanDepth);
+                            oceanColor = mix(beaches, oceanColor, smoothstep(0.0, 0.3, oceanDepth));
                             
-                            // Lighting
-                            float NdotL = max(dot(vNormal, sunDirection), 0.0);
-                            float ambient = 0.3;
-                            float diffuse = NdotL * 0.7;
+                            // Final surface
+                            vec3 surfaceColor = mix(oceanColor, landColor, landMass);
                             
-                            // Atmosphere rim lighting
+                            // Advanced lighting
+                            vec3 lightDir = normalize(sunDirection);
+                            float NdotL = dot(vWorldNormal, lightDir);
+                            float lightIntensity = max(NdotL, 0.0);
+                            
+                            // Atmospheric scattering
                             float rim = 1.0 - max(dot(vNormal, vec3(0.0, 0.0, 1.0)), 0.0);
-                            rim = pow(rim, 2.0);
-                            vec3 atmosphereColor = vec3(0.3, 0.5, 1.0) * rim * 0.5;
+                            rim = pow(rim, 1.8);
+                            vec3 atmosphere = vec3(0.4, 0.7, 1.0) * rim * 0.6;
                             
-                            vec3 finalColor = baseColor * (ambient + diffuse) + atmosphereColor;
-                            finalColor = mix(finalColor, vec3(1.0), clouds * 0.3);
+                            // Cloud layer
+                            float clouds = fbm(vUv * 6.0 + vec2(time * 0.02, 0.0));
+                            clouds = smoothstep(0.4, 0.8, clouds);
+                            float cloudShadow = 1.0 - clouds * 0.5 * lightIntensity;
                             
-                            // Add specular for water (oceans)
-                            if (isLand < 0.5) {
-                                vec3 viewDir = normalize(cameraPosition - vPosition);
-                                vec3 reflectDir = reflect(-sunDirection, vNormal);
-                                float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
-                                finalColor += vec3(1.0) * spec * 0.3;
-                            }
+                            // Night city lights
+                            float nightSide = smoothstep(-0.1, 0.1, -NdotL);
+                            float cityPattern = hash(floor(vUv * 100.0));
+                            vec3 nightLights = cityLights * step(0.9, cityPattern) * landMass * nightSide * 0.8;
+                            
+                            // Ocean specular
+                            vec3 viewDir = normalize(vViewPosition);
+                            vec3 reflectDir = reflect(-lightDir, vWorldNormal);
+                            float oceanSpec = pow(max(dot(viewDir, reflectDir), 0.0), 64.0) * (1.0 - landMass) * lightIntensity;
+                            
+                            // Combine lighting
+                            vec3 ambient = vec3(0.1, 0.15, 0.2);
+                            vec3 diffuse = surfaceColor * lightIntensity * cloudShadow;
+                            vec3 specular = vec3(1.0) * oceanSpec;
+                            
+                            vec3 finalColor = ambient + diffuse + specular + atmosphere + nightLights;
+                            finalColor = mix(finalColor, vec3(1.0), clouds * 0.7 * max(lightIntensity, 0.1));
+                            
+                            // Color enhancement
+                            finalColor = pow(finalColor, vec3(0.9));
+                            finalColor *= 1.1;
                             
                             gl_FragColor = vec4(finalColor, 1.0);
                         }
