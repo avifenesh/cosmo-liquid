@@ -54,38 +54,81 @@ importScripts('https://unpkg.com/three@0.158.0/build/three.min.js');
  * @param {MessageEvent} e - The message event from main thread
  * @param {WorkerMessage} e.data - The data sent from the main thread
  */
-self.onmessage = function(e) {
-    const { particles: plainParticles, deltaTime, gravityWells: plainGravityWells } = e.data;
+self.onmessage = function (e) {
+  try {
+    const {
+      particles: plainParticles,
+      deltaTime,
+      gravityWells: plainGravityWells,
+    } = e.data;
+    const tStart = performance.now();
 
-    // Re-hydrate plain objects into THREE.Vector3 instances
-    const particles = plainParticles.map(p => {
-        p.position = new THREE.Vector3(p.position.x, p.position.y, p.position.z);
-        p.velocity = new THREE.Vector3(p.velocity.x, p.velocity.y, p.velocity.z);
-        return p;
+    // Defensive guards
+    if (!plainParticles || !Array.isArray(plainParticles)) {
+      throw new Error("Worker received invalid particles payload");
+    }
+    const dt = Math.max(0, Math.min(deltaTime || 0.016, 0.1));
+
+    // Re-hydrate vectors
+    const particles = plainParticles.map((p) => {
+      p.position = new THREE.Vector3(p.position.x, p.position.y, p.position.z);
+      p.velocity = new THREE.Vector3(p.velocity.x, p.velocity.y, p.velocity.z);
+      return p;
+    });
+    const gravityWells = (plainGravityWells || []).map((gw) => {
+      gw.position = new THREE.Vector3(
+        gw.position.x,
+        gw.position.y,
+        gw.position.z
+      );
+      return gw;
     });
 
-    const gravityWells = plainGravityWells.map(gw => {
-        gw.position = new THREE.Vector3(gw.position.x, gw.position.y, gw.position.z);
-        return gw;
-    });
-
-    // Initialize engines if they don't exist
+    // Lazy init
     if (!self.physicsEngine) {
-        self.physicsEngine = new PhysicsEngine();
+      self.physicsEngine = new PhysicsEngine();
     }
     if (!self.particleSystem) {
-        self.particleSystem = new ParticleSystem(self.physicsEngine);
+      self.particleSystem = new ParticleSystem(self.physicsEngine);
     }
 
+    // Assign state
     self.physicsEngine.gravityWells = gravityWells;
     self.particleSystem.activeParticles = new Set(particles);
 
-    self.particleSystem.update(deltaTime);
+    // Adaptive feature thresholds
+    const count = particles.length;
+    self.particleSystem.fluidDynamicsEnabled = count <= 5000; // disable SPH above 5k
+    self.particleSystem.octreeEnabled = count <= 8000; // disable octree above 8k
+
+    self.particleSystem.update(dt);
 
     const updatedParticles = Array.from(self.particleSystem.activeParticles);
-
-    self.postMessage({ particles: updatedParticles });
-}
+    const tEnd = performance.now();
+    self.postMessage({
+      particles: updatedParticles,
+      meta: {
+        dt: dt,
+        count,
+        ms: tEnd - tStart,
+        fluid: self.particleSystem.fluidDynamicsEnabled,
+        octree: self.particleSystem.octreeEnabled,
+      },
+    });
+  } catch (err) {
+    // Post structured error & attempt minimal fallback integration to keep system alive
+    try {
+      self.postMessage({
+        error: {
+          message: err.message,
+          stack: err.stack
+            ? err.stack.split("\n").slice(0, 6).join("\n")
+            : "no-stack",
+        },
+      });
+    } catch (_) {}
+  }
+};
 
 // --- Barnes-Hut Octree Node ---
 class OctreeNode {
@@ -373,68 +416,97 @@ class ParticleSystem {
       this.physicsEngine = physicsEngine;
       this.fluidDynamics = new FluidDynamics();
       this.activeParticles = new Set();
+      this.fluidDynamicsEnabled = true;
+      this.octreeEnabled = true;
     }
 
     update(deltaTime) {
         const activeParticlesArray = Array.from(this.activeParticles);
-        if (activeParticlesArray.length > 0) {
-          this.fluidDynamics.updateFluidDynamics(
-            activeParticlesArray,
-            deltaTime
-          );
+        if (this.fluidDynamicsEnabled && activeParticlesArray.length > 0) {
+          try {
+            this.fluidDynamics.updateFluidDynamics(
+              activeParticlesArray,
+              deltaTime
+            );
+          } catch (e) {
+            this.fluidDynamicsEnabled = false;
+          }
         }
         this.updateParticles(deltaTime);
     }
 
     updateParticles(deltaTime) {
-        const activeParticlesArray = Array.from(this.activeParticles);
-        
-        // Build Barnes-Hut octree for particle-particle gravity (O(n log n))
-        this.physicsEngine.buildOctree(activeParticlesArray);
-        
-        const gravityWells = this.physicsEngine.gravityWells;
-        
-        for (const particle of this.activeParticles) {
-            if (!particle.active) continue;
-            
-            particle.age += deltaTime;
-            const distanceFromOrigin = new THREE.Vector3(particle.position.x, particle.position.y, particle.position.z).length();
-            if (distanceFromOrigin > 5000) {
-                particle.active = false;
-                continue;
-            }
-            
-            const totalForce = new THREE.Vector3(0, 0, 0);
-            
-            // SPH fluid forces
-            const sphForces = this.fluidDynamics.getSPHForces(particle);
-            totalForce.add(sphForces);
-            
-            // Particle-particle gravity using Barnes-Hut (HUGE performance improvement)
-            const particleGravityForce = this.physicsEngine.calculateParticleGravityForce(particle, activeParticlesArray);
-            if (particle.liquidType === 'antimatter' || particle.liquidType === 'exotic') {
-                particleGravityForce.multiplyScalar(-1); // Anti-gravity
-            }
-            if (particle.liquidType === 'darkmatter') {
-                particleGravityForce.multiplyScalar(2); // Enhanced gravity
-            }
-            totalForce.add(particleGravityForce);
-            
-            // Gravity wells (external gravity sources)
-            for (const well of gravityWells) {
-                const gravityForce = this.physicsEngine.calculateGravitationalForce(particle, well);
-                if (particle.liquidType === 'antimatter' || particle.liquidType === 'exotic') {
-                    gravityForce.multiplyScalar(-1);
-                }
-                if (particle.liquidType === 'darkmatter') {
-                    gravityForce.multiplyScalar(2);
-                }
-                totalForce.add(gravityForce);
-            }
-            
-            this.physicsEngine.verletIntegration(particle, totalForce, deltaTime);
-            this.applyConstraints(particle);
+      const activeParticlesArray = Array.from(this.activeParticles);
+      // Only build octree if enabled
+      if (this.octreeEnabled) {
+        try {
+          this.physicsEngine.buildOctree(activeParticlesArray);
+        } catch (e) {
+          this.octreeEnabled = false;
         }
+      }
+
+      const gravityWells = this.physicsEngine.gravityWells;
+
+      for (const particle of this.activeParticles) {
+        if (!particle.active) continue;
+
+        particle.age += deltaTime;
+        const distanceFromOrigin = new THREE.Vector3(
+          particle.position.x,
+          particle.position.y,
+          particle.position.z
+        ).length();
+        if (distanceFromOrigin > 5000) {
+          particle.active = false;
+          continue;
+        }
+
+        const totalForce = new THREE.Vector3(0, 0, 0);
+
+        // SPH fluid forces
+        const sphForces = this.fluidDynamics.getSPHForces(particle);
+        totalForce.add(sphForces);
+
+        // Particle-particle gravity using Barnes-Hut (HUGE performance improvement)
+        const particleGravityForce = this.octreeEnabled
+          ? this.physicsEngine.calculateParticleGravityForce(
+              particle,
+              activeParticlesArray
+            )
+          : new THREE.Vector3(0, 0, 0);
+        if (
+          particle.liquidType === "antimatter" ||
+          particle.liquidType === "exotic"
+        ) {
+          particleGravityForce.multiplyScalar(-1); // Anti-gravity
+        }
+        if (particle.liquidType === "darkmatter") {
+          particleGravityForce.multiplyScalar(2); // Enhanced gravity
+        }
+        totalForce.add(particleGravityForce);
+
+        // Gravity wells (external gravity sources)
+        for (const well of gravityWells) {
+          const gravityForce = this.physicsEngine.calculateGravitationalForce(
+            particle,
+            well
+          );
+          if (
+            particle.liquidType === "antimatter" ||
+            particle.liquidType === "exotic"
+          ) {
+            gravityForce.multiplyScalar(-1);
+          }
+          if (particle.liquidType === "darkmatter") {
+            gravityForce.multiplyScalar(2);
+          }
+          totalForce.add(gravityForce);
+        }
+
+        this.physicsEngine.verletIntegration(particle, totalForce, deltaTime);
+        this.applyConstraints(particle);
+      }
     }
 
     applyConstraints(particle) {
