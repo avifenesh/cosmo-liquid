@@ -157,6 +157,10 @@ export class ParticleSystem {
     this.enableGravityDebug = false;
     /** @type {number} Timer for gravity debug logging */
     this._gravityDebugTimer = 0;
+    /** @type {boolean} When true, send ALL active particles to physics worker (ensures global gravity consistency) */
+    this.simulateAllParticles = true;
+    /** @type {number} Optional cap on particles sent to worker when simulateAllParticles=true (0 = no cap) */
+    this.maxPhysicsBatch = 0;
   }
 
   /**
@@ -312,22 +316,30 @@ export class ParticleSystem {
       this.generateStreamParticles(deltaTime);
     }
 
-    // Frustum culling: separate visible and invisible particles for performance
+    // Build arrays for physics update
     const activeParticlesArray = Array.from(this.activeParticles);
-    const { visibleParticles, invisibleParticles } =
-      this.performFrustumCulling(activeParticlesArray);
+    let physicsParticles;
+    if (this.simulateAllParticles) {
+      physicsParticles = activeParticlesArray;
+      // Optional batch cap for performance safety
+      if (this.maxPhysicsBatch > 0 && physicsParticles.length > this.maxPhysicsBatch) {
+        physicsParticles = physicsParticles.slice(0, this.maxPhysicsBatch);
+      }
+    } else {
+      // Legacy behavior: only simulate visible subset
+      const { visibleParticles, invisibleParticles } = this.performFrustumCulling(activeParticlesArray);
+      physicsParticles = visibleParticles;
+      // Update invisible particles with simplified physics (legacy path)
+      this.updateInvisibleParticles(invisibleParticles, deltaTime);
+    }
 
-    // Send only visible particles to physics worker (MAJOR performance boost)
-    if (visibleParticles.length > 0) {
+    if (physicsParticles.length > 0) {
       this.physicsWorker.postMessage({
-        particles: visibleParticles,
+        particles: physicsParticles,
         deltaTime: deltaTime,
         gravityWells: this.physicsEngine.getGravityWells(),
       });
     }
-
-    // Update invisible particles with simplified physics (position only)
-    this.updateInvisibleParticles(invisibleParticles, deltaTime);
 
     // Update visual properties only (no physics on main thread)
     this.updateParticleVisuals(deltaTime);
@@ -876,6 +888,40 @@ export class ParticleSystem {
    */
   getActiveParticleCount() {
     return this.activeParticles.size;
+  }
+
+  /**
+   * Toggle whether all particles (not only visible) are fully simulated in the physics worker.
+   * @param {boolean} value
+   */
+  setSimulateAllParticles(value) {
+    this.simulateAllParticles = !!value;
+    console.log('[ParticleSystem] simulateAllParticles =', this.simulateAllParticles);
+  }
+
+  /**
+   * Debug: sample gravitational acceleration from each gravity well for a given particle index.
+   * @param {number} [particleIndex=0] Index within activeParticles iteration order.
+   * @returns {Object|null}
+   */
+  debugGravityForParticle(particleIndex = 0) {
+    const arr = Array.from(this.activeParticles).filter(p => p.active);
+    if (!arr.length) {
+      console.warn('[GravityDebug] No active particles');
+      return null;
+    }
+    if (particleIndex < 0 || particleIndex >= arr.length) particleIndex = 0;
+    const particle = arr[particleIndex];
+    const wells = this.physicsEngine.getGravityWells();
+    const samples = [];
+    for (const w of wells) {
+      const F = this.physicsEngine.calculateGravitationalForce(particle, w);
+      const accel = F.clone().divideScalar(Math.max(0.0001, Math.abs(particle.mass)));
+      samples.push({ wellId: w.id, distance: particle.position.distanceTo(w.position), accel: accel.length(), force: F.length() });
+    }
+    const result = { particleIndex, position: particle.position.clone(), mass: particle.mass, samples };
+    console.log('[GravityDebug]', result);
+    return result;
   }
 
   /**
