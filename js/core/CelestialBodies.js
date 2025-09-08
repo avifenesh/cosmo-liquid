@@ -5,6 +5,8 @@
 
 import * as THREE from 'three';
 
+const textureLoader = new THREE.TextureLoader();
+
 export class CelestialBodies {
     constructor(physicsEngine, renderEngine) {
         this.physicsEngine = physicsEngine;
@@ -199,6 +201,8 @@ export class CelestialBodies {
             position: position.clone()
         });
         
+        this.showConfirmationMessage(`Placed ${celestialData.name}`);
+
         console.log(`Placed ${celestialData.name} at position (${position.x.toFixed(1)}, ${position.y.toFixed(1)}, ${position.z.toFixed(1)})`);
         
         return celestialId;
@@ -478,12 +482,14 @@ export class CelestialBodies {
 
           case "Jupiter":
             // Jupiter - realistic banded atmosphere with Great Red Spot
+            const jupiterTexture = textureLoader.load('js/textures/jupiter_map.jpg');
             material = new THREE.ShaderMaterial({
               uniforms: {
                 time: { value: 0.0 },
                 sunDirection: {
                   value: new THREE.Vector3(1, 0.5, 0.5).normalize(),
                 },
+                jupiterTexture: { value: jupiterTexture },
               },
               vertexShader: `
                         varying vec2 vUv;
@@ -500,57 +506,13 @@ export class CelestialBodies {
               fragmentShader: `
                         uniform float time;
                         uniform vec3 sunDirection;
+                        uniform sampler2D jupiterTexture;
                         varying vec2 vUv;
                         varying vec3 vNormal;
                         varying vec3 vPosition;
                         
-                        // Turbulence function for atmospheric flows
-                        float turbulence(vec2 p) {
-                            float f = 0.0;
-                            float scale = 1.0;
-                            for(int i = 0; i < 4; i++) {
-                                f += abs(sin(p.x * scale + time * 0.1) * cos(p.y * scale)) / scale;
-                                scale *= 2.0;
-                            }
-                            return f;
-                        }
-                        
                         void main() {
-                            // Jupiter's characteristic colors
-                            vec3 bandLight = vec3(0.95, 0.85, 0.7);
-                            vec3 bandDark = vec3(0.6, 0.4, 0.25);
-                            vec3 bandOrange = vec3(0.9, 0.6, 0.3);
-                            vec3 spotRed = vec3(0.8, 0.3, 0.2);
-                            
-                            // Create banded structure with variation
-                            float y = vUv.y;
-                            float bandBase = sin(y * 12.0 + turbulence(vec2(vUv.x * 5.0, y)) * 2.0);
-                            float bands = bandBase * 0.5 + 0.5;
-                            
-                            // Add longitudinal variation
-                            float flow = sin(vUv.x * 30.0 + time * 0.2 + y * 5.0) * 0.1;
-                            bands += flow;
-                            
-                            // Mix band colors
-                            vec3 bandColor = mix(bandDark, bandLight, smoothstep(0.3, 0.7, bands));
-                            bandColor = mix(bandColor, bandOrange, smoothstep(0.6, 0.9, bands) * 0.5);
-                            
-                            // Great Red Spot
-                            vec2 spotCenter = vec2(0.6 + sin(time * 0.05) * 0.1, 0.4);
-                            float spotDist = length((vUv - spotCenter) * vec2(2.0, 1.0));
-                            float spot = smoothstep(0.15, 0.05, spotDist);
-                            
-                            // Swirling pattern in the spot
-                            if(spot > 0.0) {
-                                float angle = atan(vUv.y - spotCenter.y, vUv.x - spotCenter.x);
-                                float swirl = sin(angle * 3.0 - spotDist * 10.0 + time * 0.5) * 0.5 + 0.5;
-                                vec3 spotColor = mix(bandColor, spotRed, spot * swirl);
-                                bandColor = mix(bandColor, spotColor, spot);
-                            }
-                            
-                            // Add small storm systems
-                            float storms = turbulence(vUv * 20.0) * 0.2;
-                            bandColor *= (1.0 - storms * 0.3);
+                            vec3 baseColor = texture2D(jupiterTexture, vUv).rgb;
                             
                             // Lighting
                             float NdotL = max(dot(vNormal, sunDirection), 0.0);
@@ -561,7 +523,7 @@ export class CelestialBodies {
                             float scatter = pow(1.0 - NdotL, 2.0) * 0.3;
                             vec3 scatterColor = vec3(1.0, 0.8, 0.6) * scatter;
                             
-                            vec3 finalColor = bandColor * (ambient + diffuse) + scatterColor;
+                            vec3 finalColor = baseColor * (ambient + diffuse) + scatterColor;
                             
                             gl_FragColor = vec4(finalColor, 1.0);
                         }
@@ -572,12 +534,14 @@ export class CelestialBodies {
 
           case "Mars":
             // Mars - realistic red planet with dust and polar caps
+            const marsTexture = textureLoader.load('js/textures/mars_map.jpg');
             material = new THREE.ShaderMaterial({
               uniforms: {
                 time: { value: 0.0 },
                 sunDirection: {
                   value: new THREE.Vector3(1, 0.5, 0.5).normalize(),
                 },
+                marsTexture: { value: marsTexture },
               },
               vertexShader: `
                         varying vec3 vNormal;
@@ -594,41 +558,13 @@ export class CelestialBodies {
               fragmentShader: `
                         uniform float time;
                         uniform vec3 sunDirection;
+                        uniform sampler2D marsTexture;
                         varying vec3 vNormal;
                         varying vec2 vUv;
                         varying vec3 vPosition;
                         
-                        float hash(vec2 p) {
-                            p = fract(p * vec2(123.34, 456.21));
-                            p += dot(p, p + 45.32);
-                            return fract(p.x * p.y);
-                        }
-                        
                         void main() {
-                            // Mars surface colors
-                            vec3 rustRed = vec3(0.7, 0.3, 0.15);
-                            vec3 darkRed = vec3(0.4, 0.15, 0.1);
-                            vec3 lightDust = vec3(0.9, 0.5, 0.3);
-                            vec3 polarIce = vec3(0.95, 0.95, 1.0);
-                            
-                            // Surface variation
-                            float terrain = hash(vUv * 20.0) * 0.5 + 
-                                          hash(vUv * 50.0) * 0.3 +
-                                          hash(vUv * 100.0) * 0.2;
-                            
-                            vec3 baseColor = mix(darkRed, rustRed, terrain);
-                            baseColor = mix(baseColor, lightDust, smoothstep(0.7, 0.9, terrain));
-                            
-                            // Polar ice caps
-                            float latitude = abs(vUv.y - 0.5) * 2.0;
-                            float iceCap = smoothstep(0.8, 0.85, latitude);
-                            baseColor = mix(baseColor, polarIce, iceCap);
-                            
-                            // Dust storms (animated)
-                            float dustStorm = sin(vUv.x * 15.0 + time * 0.5) * 
-                                            sin(vUv.y * 10.0 - time * 0.3);
-                            dustStorm = smoothstep(0.3, 0.7, dustStorm) * 0.3;
-                            baseColor = mix(baseColor, lightDust, dustStorm);
+                            vec3 baseColor = texture2D(marsTexture, vUv).rgb;
                             
                             // Lighting
                             float NdotL = max(dot(vNormal, sunDirection), 0.0);
@@ -651,12 +587,19 @@ export class CelestialBodies {
 
           case "Earth":
             // Earth - realistic with continents, oceans, and clouds
+            const earthTexture = textureLoader.load('js/textures/earth_daymap.jpg');
+            const earthNormalMap = textureLoader.load('js/textures/earth_normal_map.png');
+            const earthCloudMap = textureLoader.load('js/textures/earth_clouds.jpg');
+
             material = new THREE.ShaderMaterial({
               uniforms: {
                 time: { value: 0.0 },
                 sunDirection: {
                   value: new THREE.Vector3(1, 0.5, 0.5).normalize(),
                 },
+                earthTexture: { value: earthTexture },
+                earthNormalMap: { value: earthNormalMap },
+                earthCloudMap: { value: earthCloudMap },
               },
               vertexShader: `
                         varying vec3 vNormal;
@@ -673,64 +616,20 @@ export class CelestialBodies {
               fragmentShader: `
                         uniform float time;
                         uniform vec3 sunDirection;
+                        uniform sampler2D earthTexture;
+                        uniform sampler2D earthNormalMap;
+                        uniform sampler2D earthCloudMap;
                         varying vec3 vNormal;
                         varying vec2 vUv;
                         varying vec3 vPosition;
                         
-                        // Simplex noise function for cloud generation
-                        vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-                        vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-                        vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
-                        
-                        float snoise(vec2 v) {
-                            const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
-                            vec2 i = floor(v + dot(v, C.yy));
-                            vec2 x0 = v - i + dot(i, C.xx);
-                            vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
-                            vec4 x12 = x0.xyxy + C.xxzz;
-                            x12.xy -= i1;
-                            i = mod289(i);
-                            vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
-                            vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
-                            m = m*m; m = m*m;
-                            vec3 x = 2.0 * fract(p * C.www) - 1.0;
-                            vec3 h = abs(x) - 0.5;
-                            vec3 ox = floor(x + 0.5);
-                            vec3 a0 = x - ox;
-                            m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);
-                            vec3 g;
-                            g.x = a0.x * x0.x + h.x * x0.y;
-                            g.yz = a0.yz * x12.xz + h.yz * x12.yw;
-                            return 130.0 * dot(m, g);
-                        }
-                        
                         void main() {
-                            // Continental pattern
-                            float continent = snoise(vUv * 4.0 + vec2(time * 0.01, 0.0));
-                            continent = smoothstep(-0.1, 0.1, continent);
-                            
-                            // Ocean and land colors
-                            vec3 oceanDeep = vec3(0.05, 0.15, 0.4);
-                            vec3 oceanShallow = vec3(0.1, 0.3, 0.6);
-                            vec3 landGreen = vec3(0.2, 0.5, 0.2);
-                            vec3 landBrown = vec3(0.4, 0.3, 0.15);
-                            vec3 snowWhite = vec3(0.9, 0.95, 1.0);
-                            
-                            // Latitude-based biomes
-                            float latitude = abs(vUv.y - 0.5) * 2.0;
-                            vec3 landColor = mix(landGreen, landBrown, smoothstep(0.3, 0.5, latitude));
-                            landColor = mix(landColor, snowWhite, smoothstep(0.7, 0.9, latitude));
-                            
-                            vec3 oceanColor = mix(oceanDeep, oceanShallow, continent * 0.5);
-                            vec3 baseColor = mix(oceanColor, landColor, continent);
-                            
-                            // Cloud layer
-                            float clouds = snoise(vUv * 8.0 + vec2(time * 0.02, time * 0.01));
-                            clouds = smoothstep(0.2, 0.5, clouds);
-                            baseColor = mix(baseColor, vec3(1.0), clouds * 0.5);
-                            
+                            vec3 normal = texture2D(earthNormalMap, vUv).rgb * 2.0 - 1.0;
+                            vec3 baseColor = texture2D(earthTexture, vUv).rgb;
+                            float clouds = texture2D(earthCloudMap, vUv).r;
+
                             // Lighting
-                            float NdotL = max(dot(vNormal, sunDirection), 0.0);
+                            float NdotL = max(dot(normal, sunDirection), 0.0);
                             float ambient = 0.3;
                             float diffuse = NdotL * 0.7;
                             
@@ -740,11 +639,12 @@ export class CelestialBodies {
                             vec3 atmosphereColor = vec3(0.3, 0.5, 1.0) * rim * 0.5;
                             
                             vec3 finalColor = baseColor * (ambient + diffuse) + atmosphereColor;
+                            finalColor = mix(finalColor, vec3(1.0), clouds * 0.5);
                             
                             // Add specular for water
-                            if (continent < 0.5) {
+                            if (baseColor.b > baseColor.g) {
                                 vec3 viewDir = normalize(cameraPosition - vPosition);
-                                vec3 reflectDir = reflect(-sunDirection, vNormal);
+                                vec3 reflectDir = reflect(-sunDirection, normal);
                                 float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
                                 finalColor += vec3(1.0) * spec * 0.5;
                             }
@@ -1170,6 +1070,15 @@ export class CelestialBodies {
     }
     
     // Utility functions
+    showConfirmationMessage(message) {
+        const messageElement = document.getElementById('confirmation-message');
+        messageElement.textContent = message;
+        messageElement.style.opacity = 1;
+        setTimeout(() => {
+            messageElement.style.opacity = 0;
+        }, 2000);
+    }
+
     generateId() {
         return Math.random().toString(36).substr(2, 9);
     }

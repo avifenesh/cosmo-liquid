@@ -166,6 +166,17 @@
             color: #ff00ff;
             box-shadow: 0 0 20px rgba(255, 0, 255, 0.7);
         }
+
+        #confirmation-message {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: #00ffff;
+            font-size: 14px;
+            text-shadow: 0 0 5px #00ffff;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
         
         #loading-screen {
             position: absolute;
@@ -237,14 +248,14 @@
         <div id="celestial-selector">
             <div class="celestial-label">Celestial Bodies</div>
             <div class="celestial-buttons">
-                <button class="celestial-button" data-celestial="moon" title="Moon">🌙</button>
-                <button class="celestial-button active" data-celestial="earth" title="Earth">🌍</button>
-                <button class="celestial-button" data-celestial="mars" title="Mars">🔴</button>
-                <button class="celestial-button" data-celestial="jupiter" title="Jupiter">🪐</button>
-                <button class="celestial-button" data-celestial="sun" title="Sun">☀️</button>
-                <button class="celestial-button" data-celestial="whiteDwarf" title="White Dwarf">⚪</button>
-                <button class="celestial-button" data-celestial="neutronStar" title="Neutron Star">✦</button>
-                <button class="celestial-button" data-celestial="blackHole" title="Black Hole">⚫</button>
+                <button class="celestial-button" data-celestial="moon" title="Moon - Earth's natural satellite">🌙</button>
+                <button class="celestial-button active" data-celestial="earth" title="Earth - Our home planet">🌍</button>
+                <button class="celestial-button" data-celestial="mars" title="Mars - The Red Planet">🔴</button>
+                <button class="celestial-button" data-celestial="jupiter" title="Jupiter - Gas giant with Great Red Spot">🪐</button>
+                <button class="celestial-button" data-celestial="sun" title="Sun - Our solar system's star">☀️</button>
+                <button class="celestial-button" data-celestial="whiteDwarf" title="White Dwarf - Extremely dense stellar remnant">⚪</button>
+                <button class="celestial-button" data-celestial="neutronStar" title="Neutron Star - Ultra-dense collapsed star">✦</button>
+                <button class="celestial-button" data-celestial="blackHole" title="Black Hole - Spacetime singularity">⚫</button>
             </div>
         </div>
         
@@ -255,6 +266,8 @@
             Mouse Wheel: Zoom<br>
             1-8: Switch liquid types
         </div>
+
+        <div id="confirmation-message"></div>
     </div>
 
     <!-- Three.js from CDN (newer approach) -->

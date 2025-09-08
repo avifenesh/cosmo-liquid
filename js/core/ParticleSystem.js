@@ -4,14 +4,16 @@
  */
 
 import * as THREE from 'three';
-import { FluidDynamics } from './FluidDynamics.js';
 
 export class ParticleSystem {
     constructor(physicsEngine) {
       this.physicsEngine = physicsEngine;
 
-      // SPH fluid dynamics engine
-      this.fluidDynamics = new FluidDynamics();
+      // Physics worker
+      this.physicsWorker = new Worker('./js/workers/physics.worker.js');
+      this.physicsWorker.onmessage = (e) => {
+        this.activeParticles = new Set(e.data.particles);
+      };
 
       // Particle management
       this.particles = [];
@@ -125,33 +127,14 @@ export class ParticleSystem {
           this.generateStreamParticles(deltaTime);
         }
 
-        // Convert active particles to array for SPH processing
         const activeParticlesArray = Array.from(this.activeParticles);
 
-        // Update SPH fluid dynamics
-        if (activeParticlesArray.length > 0) {
-          this.fluidDynamics.updateFluidDynamics(
-            activeParticlesArray,
-            deltaTime
-          );
-        }
+        this.physicsWorker.postMessage({
+            particles: activeParticlesArray,
+            deltaTime: deltaTime,
+            gravityWells: this.physicsEngine.getGravityWells(),
+        });
 
-        // Update all active particles with combined forces
-        this.updateParticles(deltaTime);
-
-        // Gravity debug sampling every ~2 seconds
-        if (this.enableGravityDebug && this._gravityDebugTimer > 2.0) {
-          let count = 0;
-          for (const p of this.activeParticles) {
-            const samples = this.physicsEngine.debugGravitySample(p);
-            if (samples && samples.length) {
-              console.log("[GravityDebug] particle", p.id, samples);
-            }
-            if (++count >= 3) break; // limit output
-          }
-          this._gravityDebugTimer = 0;
-        }
-        
         // Update GPU buffers
         this.updateGeometryAttributes();
         

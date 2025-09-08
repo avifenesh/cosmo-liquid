@@ -19,6 +19,15 @@ export class RenderEngine {
         this.camera = null;
         this.renderer = null;
         this.controls = null;
+
+        // Metaballs
+        this.metaballsWorker = new Worker('./js/workers/metaballs.worker.js');
+        this.liquidMesh = null;
+        this.metaballsWorker.onmessage = (e) => {
+            const { vertices, normals } = e.data;
+            this.liquidMesh.geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+            this.liquidMesh.geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+        };
         
         // Visual effects system
         this.visualEffects = null;
@@ -179,49 +188,37 @@ export class RenderEngine {
     }
     
     setupParticleSystem(particleSystem) {
-        // Create multiple particle meshes for different liquid types
-        if (particleSystem && particleSystem.particleGeometry) {
-            // Create a mesh for each liquid type (initially hidden)
-            const liquidTypes = ['plasma', 'crystal', 'temporal', 'antimatter', 'quantum', 'darkmatter', 'exotic', 'photonic'];
-            
-            for (const liquidType of liquidTypes) {
-                const material = this.particleMaterials.get(liquidType);
-                const mesh = new THREE.Points(particleSystem.particleGeometry, material);
-                mesh.visible = liquidType === 'plasma'; // Only show plasma initially
-                this.particleMeshes.set(liquidType, mesh);
-                this.scene.add(mesh);
-            }
-            
-            console.log('Particle meshes added to scene for all liquid types');
-            return this.particleMeshes.get('plasma');
-        }
-        return null;
+        this.liquidMesh = this.metaballs.generateMesh();
+        this.scene.add(this.liquidMesh);
+
+        const liquidMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                time: { value: 0.0 },
+                color: { value: new THREE.Color(0x00ffff) },
+            },
+            vertexShader: `
+                varying vec3 vNormal;
+                void main() {
+                    vNormal = normal;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 color;
+                varying vec3 vNormal;
+                void main() {
+                    float intensity = dot(vNormal, vec3(0.0, 0.0, 1.0));
+                    gl_FragColor = vec4(color * intensity, 1.0);
+                }
+            `,
+        });
+
+        this.liquidMesh.material = liquidMaterial;
+
+        return this.liquidMesh;
     }
     
-    // Switch active liquid type for rendering
-    setActiveLiquidType(liquidType) {
-        // Hide all particle meshes
-        for (const [type, mesh] of this.particleMeshes) {
-            mesh.visible = false;
-        }
-        
-        // Show the selected liquid type mesh
-        const activeMesh = this.particleMeshes.get(liquidType);
-        if (activeMesh) {
-            activeMesh.visible = true;
-            this.currentLiquidType = liquidType;
-        }
-    }
     
-    // Update particle geometry for active liquid type
-    updateParticleGeometry(particleSystem) {
-        // Update all meshes to use the same geometry data
-        for (const [type, mesh] of this.particleMeshes) {
-            if (mesh.geometry !== particleSystem.particleGeometry) {
-                mesh.geometry = particleSystem.particleGeometry;
-            }
-        }
-    }
     
     setupLighting() {
         // Ambient light for basic visibility
@@ -298,30 +295,34 @@ export class RenderEngine {
         return t === 0 ? 0 : t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
     }
     
-    render(particles) {
+    render(particleSystem) {
         if (!this.isInitialized) return;
-        
+
         // Update controls
         this.controls.update();
-        
+
         // Update time-based effects
         const time = performance.now() * 0.001;
         const deltaTime = 0.016; // Assume 60 FPS for now
-        
+
         // Update visual effects system
         this.visualEffects.update(deltaTime);
-        
+
         // Update gravity well materials
         if (this.gravityWellMaterial.uniforms) {
             this.gravityWellMaterial.uniforms.time.value = time;
         }
-        
+
         this.scene.traverse((object) => {
             if (object.userData.type === 'gravityWell' && object.material.uniforms) {
                 object.material.uniforms.time.value = time;
             }
         });
-        
+
+        // Update liquid mesh
+        const activeParticles = Array.from(particleSystem.activeParticles);
+        this.metaballsWorker.postMessage({ particles: activeParticles });
+
         if (this.composer) {
           this.composer.render();
         } else {
