@@ -10,6 +10,7 @@ import { RenderEngine } from './core/RenderEngine.js';
 import { InputManager } from './core/InputManager.js';
 import { PerformanceMonitor } from './core/PerformanceMonitor.js';
 import { AudioEngine } from './core/AudioEngine.js';
+import { CelestialBodies } from './core/CelestialBodies.js';
 
 class CosmoLiquid {
     constructor() {
@@ -23,6 +24,7 @@ class CosmoLiquid {
         this.inputManager = null;
         this.performanceMonitor = null;
         this.audioEngine = null;
+        this.celestialBodies = null;
         
         // State
         this.currentLiquidType = 'plasma';
@@ -54,6 +56,9 @@ class CosmoLiquid {
             
             // Connect particle system to render engine
             this.renderEngine.setupParticleSystem(this.particleSystem);
+            
+            // Initialize celestial bodies system
+            this.celestialBodies = new CelestialBodies(this.physicsEngine, this.renderEngine);
             
             await this.updateLoadingProgress(60, 'Initializing audio system...');
             
@@ -119,8 +124,13 @@ class CosmoLiquid {
                 // Update current liquid type
                 this.currentLiquidType = e.target.dataset.liquid;
                 
+                // Update render engine to show the new liquid type
+                this.renderEngine.setActiveLiquidType(this.currentLiquidType);
+                
                 // Play selection sound
                 this.audioEngine.playLiquidSelectSound(this.currentLiquidType);
+                
+                console.log(`Switched to liquid type: ${this.currentLiquidType}`);
             });
         });
         
@@ -133,6 +143,26 @@ class CosmoLiquid {
                     buttons[key - 1].click();
                 }
             }
+        });
+        
+        // Celestial body selection
+        document.querySelectorAll('.celestial-button').forEach(button => {
+            button.addEventListener('click', (e) => {
+                // Remove active class from all buttons
+                document.querySelectorAll('.celestial-button').forEach(b => b.classList.remove('active'));
+                
+                // Add active class to clicked button
+                e.target.classList.add('active');
+                
+                // Update selected celestial type
+                const celestialType = e.target.dataset.celestial;
+                this.celestialBodies.setSelectedCelestialType(celestialType);
+                
+                // Play selection sound
+                this.audioEngine.playGravityWellSound();
+                
+                console.log(`Selected celestial body: ${celestialType}`);
+            });
         });
         
         // Mouse interactions
@@ -210,14 +240,8 @@ class CosmoLiquid {
     placeGravityWell(position) {
         const worldPosition = this.renderEngine.screenToWorld(position);
         
-        this.physicsEngine.addGravityWell({
-            position: worldPosition,
-            mass: 1000,
-            type: 'star' // Default gravity well type
-        });
-        
-        // Visual feedback
-        this.renderEngine.addGravityWellVisual(worldPosition);
+        // Place the selected celestial body
+        this.celestialBodies.placeCelestialBody(worldPosition);
         
         // Audio feedback
         this.audioEngine.playGravityWellSound();
@@ -251,8 +275,14 @@ class CosmoLiquid {
         // Update physics
         this.physicsEngine.update(cappedDeltaTime);
         
-        // Update particle system
+        // Update particle system with fluid dynamics
         this.particleSystem.update(cappedDeltaTime);
+        
+        // Update celestial bodies
+        this.celestialBodies.update(cappedDeltaTime);
+        
+        // Update particle geometry in render engine
+        this.renderEngine.updateParticleGeometry(this.particleSystem);
         
         // Update audio (spatial positioning, etc.)
         this.audioEngine.update(this.renderEngine.camera);

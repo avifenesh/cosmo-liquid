@@ -1,13 +1,17 @@
 /**
  * ParticleSystem - Manages particle lifecycle and physics integration
- * Implements object pooling and efficient particle management
+ * Implements object pooling and efficient particle management with SPH fluid dynamics
  */
 
 import * as THREE from 'three';
+import { FluidDynamics } from './FluidDynamics.js';
 
 export class ParticleSystem {
     constructor(physicsEngine) {
         this.physicsEngine = physicsEngine;
+        
+        // SPH fluid dynamics engine
+        this.fluidDynamics = new FluidDynamics();
         
         // Particle management
         this.particles = [];
@@ -100,7 +104,15 @@ export class ParticleSystem {
             this.generateStreamParticles(deltaTime);
         }
         
-        // Update all active particles
+        // Convert active particles to array for SPH processing
+        const activeParticlesArray = Array.from(this.activeParticles);
+        
+        // Update SPH fluid dynamics
+        if (activeParticlesArray.length > 0) {
+            this.fluidDynamics.updateFluidDynamics(activeParticlesArray, deltaTime);
+        }
+        
+        // Update all active particles with combined forces
         this.updateParticles(deltaTime);
         
         // Update GPU buffers
@@ -167,17 +179,23 @@ export class ParticleSystem {
         for (const particle of this.activeParticles) {
             if (!particle.active) continue;
             
-            // Age the particle
+            // Age the particle (for visual effects, not for removal)
             particle.age += deltaTime;
             
-            // Check if particle should die
-            if (particle.age > particle.lifetime) {
+            // Particles no longer die from age - they persist and follow gravity
+            // Only remove if they go extremely far from the simulation
+            const distanceFromOrigin = particle.position.length();
+            if (distanceFromOrigin > 5000) {
                 particle.active = false;
                 continue;
             }
             
             // Calculate forces acting on particle
             const totalForce = new THREE.Vector3(0, 0, 0);
+            
+            // Add SPH fluid forces (pressure, viscosity, cohesion, surface tension)
+            const sphForces = this.fluidDynamics.getSPHForces(particle);
+            totalForce.add(sphForces);
             
             // Gravitational forces
             for (const well of gravityWells) {
@@ -283,52 +301,99 @@ export class ParticleSystem {
     }
     
     applyConstraints(particle) {
-        // World boundaries (prevent particles from going too far)
-        const maxDistance = 2000;
+        // Soft boundaries - particles are gently pulled back if they go too far
+        const softBoundary = 1500;
+        const hardBoundary = 2000;
         const distanceFromOrigin = particle.position.length();
         
-        if (distanceFromOrigin > maxDistance) {
-            // Reflect particle back towards origin
-            const direction = particle.position.clone().normalize();
-            particle.position.copy(direction.multiplyScalar(maxDistance));
+        if (distanceFromOrigin > softBoundary) {
+            // Apply inward force that gets stronger as particle goes further
+            const pullStrength = Math.min((distanceFromOrigin - softBoundary) / 500, 1.0) * 50.0;
+            const pullDirection = particle.position.clone().normalize().multiplyScalar(-pullStrength);
+            particle.velocity.add(pullDirection.multiplyScalar(0.01));
             
-            // Reverse velocity component pointing away from origin
-            const velocityDirection = particle.velocity.clone().normalize();
-            const dot = velocityDirection.dot(direction);
-            if (dot > 0) {
-                particle.velocity.reflect(direction);
-                particle.velocity.multiplyScalar(0.8); // Energy loss
+            // Hard boundary - reflect if too far
+            if (distanceFromOrigin > hardBoundary) {
+                const direction = particle.position.clone().normalize();
+                particle.position.copy(direction.multiplyScalar(hardBoundary));
+                
+                // Reflect velocity if moving away
+                const velocityDirection = particle.velocity.clone().normalize();
+                const dot = velocityDirection.dot(direction);
+                if (dot > 0) {
+                    particle.velocity.reflect(direction);
+                    particle.velocity.multiplyScalar(0.9); // Small energy loss
+                }
             }
+        }
+        
+        // Prevent particles from getting stuck at exactly zero velocity
+        if (particle.velocity.length() < 0.01) {
+            // Add tiny random velocity to prevent complete stillness
+            particle.velocity.add(new THREE.Vector3(
+                (Math.random() - 0.5) * 0.02,
+                (Math.random() - 0.5) * 0.02,
+                (Math.random() - 0.5) * 0.02
+            ));
         }
     }
     
     updateParticleVisuals(particle, deltaTime) {
-        // Fade out near end of lifetime
-        const lifeRatio = particle.age / particle.lifetime;
-        const alpha = Math.max(0, 1 - Math.pow(lifeRatio, 2));
+        // Particles maintain full visibility since they don't fade with age
+        // Visual effects are based on physics state instead of lifetime
         
-        // Update color alpha
-        particle.color.setScalar(alpha);
+        // Base alpha from velocity (faster = brighter)
+        const speed = particle.velocity.length();
+        const speedAlpha = Math.min(1.0, 0.5 + speed * 0.01);
         
-        // Size variation based on age and liquid type
+        // Density-based brightness (denser areas are brighter)
+        const densityAlpha = particle.density ? 
+            Math.min(1.0, 0.3 + particle.density / this.fluidDynamics.restDensity) : 1.0;
+        
+        // Combined alpha
+        const alpha = speedAlpha * densityAlpha;
+        
+        // Update color intensity based on alpha
+        const baseColor = this.getLiquidColor(particle.liquidType);
+        particle.color.r = baseColor.r * alpha;
+        particle.color.g = baseColor.g * alpha;
+        particle.color.b = baseColor.b * alpha;
+        
+        // Size variation based on liquid type and physics state
         let sizeMultiplier = 1;
         
         switch (particle.liquidType) {
             case 'plasma':
-                // Pulsing effect
-                sizeMultiplier = 0.8 + 0.2 * Math.sin(particle.age * 10);
+                // Pulsing effect based on velocity
+                sizeMultiplier = 0.8 + 0.2 * Math.sin(particle.age * 10 + speed);
                 break;
             case 'crystal':
-                // Growing over time
-                sizeMultiplier = Math.min(2, 1 + lifeRatio);
+                // Size based on density (crystallization)
+                if (particle.density) {
+                    sizeMultiplier = 0.8 + 0.4 * (particle.density / this.fluidDynamics.restDensity);
+                }
                 break;
             case 'quantum':
                 // Random size fluctuation
-                sizeMultiplier = 0.5 + 0.5 * Math.random();
+                sizeMultiplier = 0.7 + 0.3 * Math.random();
                 break;
+            case 'temporal':
+                // Size oscillates with time
+                sizeMultiplier = 1.0 + 0.3 * Math.sin(particle.age * 3);
+                break;
+            case 'darkmatter':
+                // Larger when slow (accumulation)
+                sizeMultiplier = 1.5 - Math.min(0.5, speed * 0.01);
+                break;
+            case 'photonic':
+                // Smaller but brighter when fast
+                sizeMultiplier = 0.5 + Math.min(0.5, speed * 0.02);
+                break;
+            default:
+                sizeMultiplier = 1.0;
         }
         
-        particle.size = particle.baseSize * sizeMultiplier * alpha;
+        particle.size = particle.baseSize * sizeMultiplier;
     }
     
     updateGeometryAttributes() {
@@ -419,18 +484,20 @@ export class ParticleSystem {
     }
     
     getLiquidLifetime(liquidType) {
+        // Particles now have infinite lifetime - they only disappear when explicitly cleared
+        // or when they go too far from the origin
         const lifetimes = {
-            plasma: 10.0,
-            crystal: 20.0,
-            temporal: 15.0,
-            antimatter: 8.0,
-            quantum: 5.0,
-            darkmatter: 30.0,
-            exotic: 12.0,
-            photonic: 3.0
+            plasma: Infinity,
+            crystal: Infinity,
+            temporal: Infinity,
+            antimatter: Infinity,
+            quantum: Infinity,
+            darkmatter: Infinity,
+            exotic: Infinity,
+            photonic: Infinity
         };
         
-        return lifetimes[liquidType] || 10.0;
+        return lifetimes[liquidType] || Infinity;
     }
     
     // Public interface

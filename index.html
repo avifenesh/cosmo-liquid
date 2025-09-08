@@ -66,6 +66,78 @@
             gap: 10px;
             pointer-events: auto;
         }
+
+        #celestial-selector {
+            position: absolute;
+            top: 80px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: auto;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+        }
+
+        .celestial-label {
+            color: #00ffff;
+            font-size: 12px;
+            text-shadow: 0 0 5px #00ffff;
+            margin-bottom: 5px;
+        }
+
+        .celestial-buttons {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        .celestial-button {
+            width: 45px;
+            height: 45px;
+            border: 2px solid rgba(0, 255, 255, 0.3);
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.5);
+            color: #00ffff;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(5px);
+            position: relative;
+        }
+
+        .celestial-button:hover {
+            border-color: #00ffff;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+            transform: scale(1.1);
+        }
+
+        .celestial-button.active {
+            border-color: #ffaa00;
+            color: #ffaa00;
+            box-shadow: 0 0 20px rgba(255, 170, 0, 0.7);
+        }
+
+        .celestial-button::after {
+            content: attr(title);
+            position: absolute;
+            bottom: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 8px;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .celestial-button:hover::after {
+            opacity: 1;
+        }
         
         .liquid-button {
             width: 40px;
@@ -160,6 +232,20 @@
             <button class="liquid-button" data-liquid="darkmatter" title="Dark Matter">🌑</button>
             <button class="liquid-button" data-liquid="exotic" title="Exotic Matter">✨</button>
             <button class="liquid-button" data-liquid="photonic" title="Photonic Stream">💡</button>
+        </div>
+
+        <div id="celestial-selector">
+            <div class="celestial-label">Celestial Bodies</div>
+            <div class="celestial-buttons">
+                <button class="celestial-button" data-celestial="moon" title="Moon">🌙</button>
+                <button class="celestial-button active" data-celestial="earth" title="Earth">🌍</button>
+                <button class="celestial-button" data-celestial="mars" title="Mars">🔴</button>
+                <button class="celestial-button" data-celestial="jupiter" title="Jupiter">🪐</button>
+                <button class="celestial-button" data-celestial="sun" title="Sun">☀️</button>
+                <button class="celestial-button" data-celestial="whiteDwarf" title="White Dwarf">⚪</button>
+                <button class="celestial-button" data-celestial="neutronStar" title="Neutron Star">✦</button>
+                <button class="celestial-button" data-celestial="blackHole" title="Black Hole">⚫</button>
+            </div>
         </div>
         
         <div id="controls-help">

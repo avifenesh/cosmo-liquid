@@ -1,10 +1,11 @@
 /**
  * RenderEngine - Three.js rendering system
- * Handles scene setup, camera controls, and particle rendering
+ * Handles scene setup, camera controls, and particle rendering with advanced visual effects
  */
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { VisualEffects } from './VisualEffects.js';
 
 export class RenderEngine {
     constructor(container) {
@@ -16,9 +17,16 @@ export class RenderEngine {
         this.renderer = null;
         this.controls = null;
         
+        // Visual effects system
+        this.visualEffects = null;
+        
         // Rendering components
-        this.particleMaterial = null;
+        this.particleMaterials = new Map(); // Different materials per liquid type
         this.gravityWellMaterial = null;
+        this.currentLiquidType = 'plasma';
+        
+        // Multiple particle meshes for different liquid types
+        this.particleMeshes = new Map();
         
         // Post-processing
         this.composer = null;
@@ -34,6 +42,11 @@ export class RenderEngine {
             this.setupCamera();
             this.setupRenderer();
             this.setupControls();
+            
+            // Initialize visual effects system
+            this.visualEffects = new VisualEffects(this.renderer);
+            await this.visualEffects.initialize();
+            
             this.setupMaterials();
             this.setupLighting();
             this.setupPostProcessing();
@@ -101,57 +114,110 @@ export class RenderEngine {
     }
     
     setupMaterials() {
-        // Particle material with glow effect
-        this.particleMaterial = new THREE.PointsMaterial({
-            color: 0x00ffff,
-            size: 4,
-            sizeAttenuation: true,
-            map: this.createParticleTexture(),
-            blending: THREE.AdditiveBlending,
-            transparent: true,
-            vertexColors: true
-        });
+        // Set up materials for each liquid type using visual effects system
+        const liquidTypes = ['plasma', 'crystal', 'temporal', 'antimatter', 'quantum', 'darkmatter', 'exotic', 'photonic'];
         
-        // Gravity well material
-        this.gravityWellMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
+        for (const liquidType of liquidTypes) {
+            this.particleMaterials.set(liquidType, this.visualEffects.getLiquidMaterial(liquidType));
+        }
+        
+        // Gravity well material with enhanced glow
+        this.gravityWellMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                time: { value: 0.0 },
+                color: { value: new THREE.Color(0x4488ff) },
+                opacity: { value: 0.8 }
+            },
+            vertexShader: `
+                uniform float time;
+                varying vec2 vUv;
+                varying vec3 vPosition;
+                
+                void main() {
+                    vUv = uv;
+                    vPosition = position;
+                    
+                    // Pulsing effect
+                    vec3 pos = position;
+                    float pulse = 1.0 + 0.1 * sin(time * 3.0);
+                    pos *= pulse;
+                    
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform float time;
+                uniform vec3 color;
+                uniform float opacity;
+                varying vec2 vUv;
+                varying vec3 vPosition;
+                
+                void main() {
+                    vec2 center = vec2(0.5, 0.5);
+                    float dist = distance(vUv, center);
+                    
+                    // Fresnel-like glow
+                    float fresnel = 1.0 - dist * 2.0;
+                    fresnel = max(0.0, fresnel);
+                    
+                    // Pulsing intensity
+                    float pulse = 0.7 + 0.3 * sin(time * 4.0);
+                    
+                    vec3 finalColor = color * fresnel * pulse;
+                    float finalAlpha = opacity * fresnel;
+                    
+                    gl_FragColor = vec4(finalColor, finalAlpha);
+                }
+            `,
             transparent: true,
-            opacity: 0.6,
-            blending: THREE.AdditiveBlending
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide
         });
     }
     
     setupParticleSystem(particleSystem) {
-        // Create Points mesh using particle geometry
+        // Create multiple particle meshes for different liquid types
         if (particleSystem && particleSystem.particleGeometry) {
-            this.particleMesh = new THREE.Points(particleSystem.particleGeometry, this.particleMaterial);
-            this.scene.add(this.particleMesh);
-            console.log('Particle mesh added to scene');
-            return this.particleMesh;
+            // Create a mesh for each liquid type (initially hidden)
+            const liquidTypes = ['plasma', 'crystal', 'temporal', 'antimatter', 'quantum', 'darkmatter', 'exotic', 'photonic'];
+            
+            for (const liquidType of liquidTypes) {
+                const material = this.particleMaterials.get(liquidType);
+                const mesh = new THREE.Points(particleSystem.particleGeometry, material);
+                mesh.visible = liquidType === 'plasma'; // Only show plasma initially
+                this.particleMeshes.set(liquidType, mesh);
+                this.scene.add(mesh);
+            }
+            
+            console.log('Particle meshes added to scene for all liquid types');
+            return this.particleMeshes.get('plasma');
         }
         return null;
     }
     
-    createParticleTexture() {
-        const canvas = document.createElement('canvas');
-        canvas.width = 64;
-        canvas.height = 64;
+    // Switch active liquid type for rendering
+    setActiveLiquidType(liquidType) {
+        // Hide all particle meshes
+        for (const [type, mesh] of this.particleMeshes) {
+            mesh.visible = false;
+        }
         
-        const context = canvas.getContext('2d');
-        const gradient = context.createRadialGradient(32, 32, 0, 32, 32, 32);
-        
-        gradient.addColorStop(0, 'rgba(255,255,255,1)');
-        gradient.addColorStop(0.2, 'rgba(255,255,255,0.8)');
-        gradient.addColorStop(0.4, 'rgba(255,255,255,0.4)');
-        gradient.addColorStop(1, 'rgba(255,255,255,0)');
-        
-        context.fillStyle = gradient;
-        context.fillRect(0, 0, 64, 64);
-        
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.needsUpdate = true;
-        
-        return texture;
+        // Show the selected liquid type mesh
+        const activeMesh = this.particleMeshes.get(liquidType);
+        if (activeMesh) {
+            activeMesh.visible = true;
+            this.currentLiquidType = liquidType;
+        }
+    }
+    
+    // Update particle geometry for active liquid type
+    updateParticleGeometry(particleSystem) {
+        // Update all meshes to use the same geometry data
+        for (const [type, mesh] of this.particleMeshes) {
+            if (mesh.geometry !== particleSystem.particleGeometry) {
+                mesh.geometry = particleSystem.particleGeometry;
+            }
+        }
     }
     
     setupLighting() {
@@ -227,8 +293,16 @@ export class RenderEngine {
         
         // Update time-based effects
         const time = performance.now() * 0.001;
+        const deltaTime = 0.016; // Assume 60 FPS for now
         
-        // Update gravity well materials (only if they have uniforms)
+        // Update visual effects system
+        this.visualEffects.update(deltaTime);
+        
+        // Update gravity well materials
+        if (this.gravityWellMaterial.uniforms) {
+            this.gravityWellMaterial.uniforms.time.value = time;
+        }
+        
         this.scene.traverse((object) => {
             if (object.userData.type === 'gravityWell' && object.material.uniforms) {
                 object.material.uniforms.time.value = time;
