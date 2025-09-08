@@ -1,4 +1,4 @@
-# Cosmic Liquid (low‑key edition)
+# Cosmic Liquid
 
 An experimental WebGL playground: throw particle "liquids" into 3D space, drop a few gravity wells, watch clusters drift, merge, smear into something that kind of feels fluid if you squint. Mostly CPU worker physics + Three.js rendering. A bunch of knobs are exposed; nothing here is production‑grade. Have fun.
 
