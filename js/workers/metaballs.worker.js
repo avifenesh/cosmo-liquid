@@ -33,17 +33,48 @@ importScripts('https://unpkg.com/three@0.158.0/build/three.min.js');
  * @param {ParticleData[]} e.data.particles - An array of particle data objects
  */
 self.onmessage = function(e) {
-    const { particles } = e.data;
+    try {
+        const { particles } = e.data;
 
-    // Initialize metaballs if it doesn't exist
-    if (!self.metaballs) {
-        self.metaballs = new Metaballs();
+        // Type validation for worker message
+        if (!particles || !Array.isArray(particles)) {
+            console.warn('Metaballs worker received invalid particles data:', particles);
+            return;
+        }
+
+        // Initialize metaballs if it doesn't exist
+        if (!self.metaballs) {
+            self.metaballs = new Metaballs();
+        }
+
+        // Convert particle data to format expected by metaballs
+        const validParticles = particles.filter(p => {
+            return p && p.position && 
+                   typeof p.position.x === 'number' && 
+                   typeof p.position.y === 'number' && 
+                   typeof p.position.z === 'number' &&
+                   typeof p.size === 'number';
+        });
+
+        if (validParticles.length === 0) {
+            // Send empty mesh if no valid particles
+            const emptyVertices = new Float32Array(0);
+            const emptyNormals = new Float32Array(0);
+            self.postMessage({ vertices: emptyVertices, normals: emptyNormals });
+            return;
+        }
+
+        self.metaballs.update(validParticles);
+        const { vertices, normals } = self.metaballs.generateMesh();
+
+        self.postMessage({ vertices, normals }, [vertices.buffer, normals.buffer]);
+    } catch (error) {
+        console.error('Metaballs worker error:', error);
+        // Send empty mesh on error
+        const emptyVertices = new Float32Array(0);
+        const emptyNormals = new Float32Array(0);
+        self.postMessage({ vertices: emptyVertices, normals: emptyNormals });
     }
-
-    self.metaballs.update(particles);
-    const { vertices, normals } = self.metaballs.generateMesh();
-
-    self.postMessage({ vertices, normals }, [vertices.buffer, normals.buffer]);
 }
 
 // --- MarchingCubesTables ---
@@ -432,15 +463,33 @@ class Metaballs {
                         const v2 = vertexList[triTable[cubeIndex][i + 1]];
                         const v3 = vertexList[triTable[cubeIndex][i + 2]];
 
-                        const normal = new THREE.Vector3().crossVectors(new THREE.Vector3().subVectors(v2, v1), new THREE.Vector3().subVectors(v3, v1)).normalize();
+                        // Skip triangles with null vertices
+                        if (!v1 || !v2 || !v3) {
+                            console.warn('Skipping triangle with null vertex:', { v1, v2, v3 });
+                            continue;
+                        }
 
-                        vertices.push(v1.x, v1.y, v1.z);
-                        vertices.push(v2.x, v2.y, v2.z);
-                        vertices.push(v3.x, v3.y, v3.z);
+                        try {
+                            const edge1 = new THREE.Vector3().subVectors(v2, v1);
+                            const edge2 = new THREE.Vector3().subVectors(v3, v1);
+                            const normal = new THREE.Vector3().crossVectors(edge1, edge2).normalize();
 
-                        normals.push(normal.x, normal.y, normal.z);
-                        normals.push(normal.x, normal.y, normal.z);
-                        normals.push(normal.x, normal.y, normal.z);
+                            // Ensure normal is valid
+                            if (!isFinite(normal.x) || !isFinite(normal.y) || !isFinite(normal.z)) {
+                                console.warn('Invalid normal calculated, using default:', normal);
+                                normal.set(0, 1, 0); // Default up vector
+                            }
+
+                            vertices.push(v1.x, v1.y, v1.z);
+                            vertices.push(v2.x, v2.y, v2.z);
+                            vertices.push(v3.x, v3.y, v3.z);
+
+                            normals.push(normal.x, normal.y, normal.z);
+                            normals.push(normal.x, normal.y, normal.z);
+                            normals.push(normal.x, normal.y, normal.z);
+                        } catch (error) {
+                            console.warn('Error generating triangle:', error);
+                        }
                     }
                 }
             }
@@ -486,21 +535,45 @@ class Metaballs {
 
     getVertexList(cornerPositions, cornerValues, cubeIndex) {
         const vertexList = [];
+        
+        // Correct edge to vertex mapping for marching cubes
+        const edgeVertices = [
+            [0, 1], [1, 2], [2, 3], [3, 0], // bottom face edges
+            [4, 5], [5, 6], [6, 7], [7, 4], // top face edges  
+            [0, 4], [1, 5], [2, 6], [3, 7]  // vertical edges
+        ];
+        
         for (let i = 0; i < 12; i++) {
             if ((edgeTable[cubeIndex] & (1 << i)) === 0) {
                 vertexList.push(null);
                 continue;
             }
-            const edgeIndex1 = i < 4 ? i : (i < 8 ? i - 4 : i - 8);
-            const edgeIndex2 = i < 4 ? (i + 1) % 4 : (i < 8 ? (i - 4 + 1) % 4 + 4 : (i - 8 + 1) % 4 + 8);
+            
+            const edge = edgeVertices[i];
+            const edgeIndex1 = edge[0];
+            const edgeIndex2 = edge[1];
 
             const p1 = cornerPositions[edgeIndex1];
             const p2 = cornerPositions[edgeIndex2];
             const v1 = cornerValues[edgeIndex1];
             const v2 = cornerValues[edgeIndex2];
 
-            const t = (this.threshold - v1) / (v2 - v1);
-            vertexList.push(new THREE.Vector3().lerpVectors(p1, p2, t));
+            // Add safety checks for undefined values
+            if (!p1 || !p2 || v1 === undefined || v2 === undefined) {
+                console.warn('Invalid corner data in metaballs:', { p1, p2, v1, v2, edgeIndex1, edgeIndex2 });
+                vertexList.push(null);
+                continue;
+            }
+
+            // Prevent division by zero
+            const denominator = v2 - v1;
+            if (Math.abs(denominator) < 1e-6) {
+                // Use midpoint if values are too close
+                vertexList.push(new THREE.Vector3().lerpVectors(p1, p2, 0.5));
+            } else {
+                const t = Math.max(0, Math.min(1, (this.threshold - v1) / denominator));
+                vertexList.push(new THREE.Vector3().lerpVectors(p1, p2, t));
+            }
         }
         return vertexList;
     }

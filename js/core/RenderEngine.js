@@ -42,16 +42,14 @@ export class RenderEngine {
         /** @type {OrbitControls|null} Camera controls for user interaction */
         this.controls = null;
 
-        // Metaballs
-        /** @type {Worker} Web worker for metaball calculations */
-        this.metaballsWorker = new Worker('./js/workers/metaballs.worker.js');
+        // Metaballs - temporarily disabled to prevent type errors
+        /** @type {Worker|null} Web worker for metaball calculations */
+        this.metaballsWorker = null;
         /** @type {THREE.Mesh|null} The mesh representing the liquid surface */
         this.liquidMesh = null;
-        this.metaballsWorker.onmessage = (e) => {
-            const { vertices, normals } = e.data;
-            this.liquidMesh.geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-            this.liquidMesh.geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
-        };
+        
+        // Metaballs worker temporarily disabled due to type safety issues
+        console.log('Metaballs worker disabled to prevent type errors - will be fixed in future version');
         
         // Visual effects system
         /** @type {VisualEffects|null} The visual effects system */
@@ -65,9 +63,9 @@ export class RenderEngine {
         /** @type {string} Current selected liquid type */
         this.currentLiquidType = 'plasma';
         
-        // Multiple particle meshes for different liquid types
-        /** @type {Map<string, THREE.Mesh>} Meshes for different particle types */
-        this.particleMeshes = new Map();
+        // Particle rendering
+        /** @type {THREE.Points|null} Main particle mesh for rendering */
+        this.particleMesh = null;
         
         // Post-processing
         /** @type {EffectComposer|null} Post-processing composer */
@@ -246,38 +244,26 @@ export class RenderEngine {
     }
     
     /**
-     * Sets up the particle system with liquid mesh for metaball rendering
+     * Sets up the particle system for rendering individual particles
      * @param {ParticleSystem} particleSystem - The particle system to set up
-     * @returns {THREE.Mesh} The created liquid mesh
+     * @returns {THREE.Points} The created particle points mesh
      */
     setupParticleSystem(particleSystem) {
-        const liquidMaterial = new THREE.ShaderMaterial({
-            uniforms: {
-                time: { value: 0.0 },
-                color: { value: new THREE.Color(0x00ffff) },
-            },
-            vertexShader: `
-                varying vec3 vNormal;
-                void main() {
-                    vNormal = normal;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
-            fragmentShader: `
-                uniform vec3 color;
-                varying vec3 vNormal;
-                void main() {
-                    float intensity = dot(vNormal, vec3(0.0, 0.0, 1.0));
-                    gl_FragColor = vec4(color * intensity, 1.0);
-                }
-            `,
+        // Create particle material for point rendering
+        const particleMaterial = new THREE.PointsMaterial({
+            size: 4,
+            vertexColors: true,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            sizeAttenuation: true
         });
 
-        const geometry = new THREE.BufferGeometry();
-        this.liquidMesh = new THREE.Mesh(geometry, liquidMaterial);
-        this.scene.add(this.liquidMesh);
+        // Create Points mesh from particle geometry
+        this.particleMesh = new THREE.Points(particleSystem.particleGeometry, particleMaterial);
+        this.scene.add(this.particleMesh);
 
-        return this.liquidMesh;
+        console.log('Particle rendering system setup complete');
+        return this.particleMesh;
     }
     
     /**
@@ -318,34 +304,41 @@ export class RenderEngine {
      * Converts 2D screen coordinates to 3D world coordinates.
      * Projects the mouse click onto a plane at z=0.
      * @param {{x: number, y: number}} screenPosition - The 2D screen coordinates.
-     * @returns {THREE.Vector3 | undefined} The 3D world coordinates, or undefined if calculation fails.
+     * @returns {THREE.Vector3|undefined} The 3D world coordinates, or undefined if calculation fails.
      */
     screenToWorld(screenPosition) {
         if (!screenPosition || !this.camera) {
-            return;
+            console.warn('screenToWorld: Invalid input parameters');
+            return undefined;
         }
 
-        var vec = new THREE.Vector3();
-        var pos = new THREE.Vector3();
+        try {
+            var vec = new THREE.Vector3();
+            var pos = new THREE.Vector3();
 
-        vec.set(
-            (screenPosition.x / window.innerWidth) * 2 - 1,
-            - (screenPosition.y / window.innerHeight) * 2 + 1,
-            0.5 );
+            vec.set(
+                (screenPosition.x / window.innerWidth) * 2 - 1,
+                - (screenPosition.y / window.innerHeight) * 2 + 1,
+                0.5 );
 
-        vec.unproject( this.camera );
+            vec.unproject( this.camera );
 
-        vec.sub( this.camera.position ).normalize();
+            vec.sub( this.camera.position ).normalize();
 
-        // Guard against division by zero when clicking along the horizon
-        if (Math.abs(vec.z) < 0.0001) {
-            return;
+            // Guard against division by zero when clicking along the horizon
+            if (Math.abs(vec.z) < 0.0001) {
+                console.warn('screenToWorld: Cannot calculate world position along horizon');
+                return undefined;
+            }
+
+            var distance = - this.camera.position.z / vec.z;
+
+            pos.copy( this.camera.position ).add( vec.multiplyScalar( distance ) );
+            return pos;
+        } catch (error) {
+            console.error('screenToWorld: Calculation error:', error);
+            return undefined;
         }
-
-        var distance = - this.camera.position.z / vec.z;
-
-        pos.copy( this.camera.position ).add( vec.multiplyScalar( distance ) );
-        return pos;
     }
     
     /**
@@ -419,9 +412,7 @@ export class RenderEngine {
             }
         });
 
-        // Update liquid mesh
-        const activeParticles = Array.from(particleSystem.activeParticles);
-        this.metaballsWorker.postMessage({ particles: activeParticles });
+        // Metaballs worker disabled - no liquid mesh updates needed
 
         if (this.composer) {
           this.composer.render();

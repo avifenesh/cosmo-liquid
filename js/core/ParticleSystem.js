@@ -48,7 +48,26 @@ export class ParticleSystem {
       /** @type {Worker} Web worker for physics calculations */
       this.physicsWorker = new Worker('./js/workers/physics.worker.js');
       this.physicsWorker.onmessage = (e) => {
-        this.activeParticles = new Set(e.data.particles);
+        // Type-safe worker message handling
+        if (e.data && Array.isArray(e.data.particles)) {
+          // Convert plain objects back to Particle instances
+          const particles = e.data.particles.map(p => {
+            const particle = new Particle(p.id || Math.random());
+            particle.position.set(p.position.x, p.position.y, p.position.z);
+            particle.velocity.set(p.velocity.x, p.velocity.y, p.velocity.z);
+            particle.mass = p.mass || 1.0;
+            particle.charge = p.charge || 0.0;
+            particle.liquidType = p.liquidType || 'plasma';
+            particle.active = p.active !== false;
+            particle.age = p.age || 0;
+            particle.density = p.density || 0;
+            particle.pressure = p.pressure || 0;
+            return particle;
+          });
+          this.activeParticles = new Set(particles);
+        } else {
+          console.warn('Invalid worker message format:', e.data);
+        }
       };
 
       // Particle management
@@ -306,9 +325,8 @@ export class ParticleSystem {
             // Calculate forces acting on particle
             const totalForce = new THREE.Vector3(0, 0, 0);
             
-            // Add SPH fluid forces (pressure, viscosity, cohesion, surface tension)
-            const sphForces = this.fluidDynamics.getSPHForces(particle);
-            totalForce.add(sphForces);
+            // Note: SPH fluid dynamics are handled by the physics worker
+            // Main thread focuses on gravity and liquid-specific effects
             
             // Gravitational forces
             for (const well of gravityWells) {
@@ -485,8 +503,9 @@ export class ParticleSystem {
       const speedAlpha = Math.min(1.0, 0.5 + speed * 0.01);
 
       // Density-based brightness (denser areas are brighter)
+      // Note: Density calculations are handled by physics worker
       const densityAlpha = particle.density
-        ? Math.min(1.0, 0.3 + particle.density / this.fluidDynamics.restDensity)
+        ? Math.min(1.0, 0.3 + particle.density / 1000.0) // Use constant rest density
         : 1.0;
 
       // Combined alpha
@@ -515,7 +534,7 @@ export class ParticleSystem {
           // Size based on density (crystallization)
           if (particle.density) {
             sizeMultiplier =
-              0.8 + 0.4 * (particle.density / this.fluidDynamics.restDensity);
+              0.8 + 0.4 * (particle.density / 1000.0); // Use constant rest density
           }
           break;
         case "quantum":
